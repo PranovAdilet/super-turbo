@@ -1,6 +1,7 @@
 "use client";
 
-import type { Attachment, UIMessage } from "ai";
+import type { UIMessage } from "ai";
+import type { Attachment } from "@/lib/types/attachment";
 import cx from "classnames";
 import {
   useRef,
@@ -46,18 +47,18 @@ function PureMultimodalInput({
   isSubmittingRef,
 }: {
   chatId: string;
-  input: UseChatHelpers["input"];
-  setInput: UseChatHelpers["setInput"];
-  status: UseChatHelpers["status"];
+  input: string; // AI SDK v5: manually managed
+  setInput: (value: string) => void; // AI SDK v5: manually managed
+  status: UseChatHelpers<any>["status"];
   stop: () => void;
   isSubmitting?: boolean;
   isSubmittingRef?: React.MutableRefObject<boolean>;
   attachments: Array<Attachment>;
   setAttachments: Dispatch<SetStateAction<Array<Attachment>>>;
   messages: Array<UIMessage>;
-  setMessages: UseChatHelpers["setMessages"];
-  append: UseChatHelpers["append"];
-  handleSubmit: UseChatHelpers["handleSubmit"];
+  setMessages: UseChatHelpers<any>["setMessages"];
+  append: (message: any, options?: any) => Promise<string | null | undefined>; // AI SDK v5: append type
+  handleSubmit: (event?: any, options?: any) => void; // AI SDK v5: handleSubmit type
   className?: string;
   selectedVisibilityType: VisibilityType;
 }) {
@@ -113,53 +114,56 @@ function PureMultimodalInput({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadQueue, setUploadQueue] = useState<Array<string>>([]);
 
-  const submitForm = useCallback(() => {
-    // Проверяем блокировку
-    if (
-      status !== "ready" ||
-      isSubmitting ||
-      isSubmittingRef?.current === true
-    ) {
-      console.log(
-        "🔍 submitForm blocked - status:",
-        status,
-        "isSubmitting:",
-        isSubmitting,
-        "isSubmittingRef:",
-        isSubmittingRef?.current
-      );
-      return;
-    }
+  const submitForm = useCallback(
+    (e: any) => {
+      // Проверяем блокировку
+      if (
+        status !== "ready" ||
+        isSubmitting ||
+        isSubmittingRef?.current === true
+      ) {
+        console.log(
+          "🔍 submitForm blocked - status:",
+          status,
+          "isSubmitting:",
+          isSubmitting,
+          "isSubmittingRef:",
+          isSubmittingRef?.current
+        );
+        return;
+      }
 
-    if (!input.trim() && attachments.length === 0) {
-      return;
-    }
+      if (!input.trim() && attachments.length === 0) {
+        return;
+      }
 
-    // НЕ обновляем URL сразу - ждем успешного создания чата
-    // URL будет обновлен через команду от сервера
+      // НЕ обновляем URL сразу - ждем успешного создания чата
+      // URL будет обновлен через команду от сервера
 
-    handleSubmit(undefined, {
-      experimental_attachments: attachments,
-    });
+      handleSubmit(undefined, {
+        experimental_attachments: attachments,
+      });
 
-    setAttachments([]);
-    setLocalStorageInput("");
-    resetHeight();
+      setAttachments([]);
+      setLocalStorageInput("");
+      resetHeight();
 
-    if (width && width > 768) {
-      textareaRef.current?.focus();
-    }
-  }, [
-    attachments,
-    handleSubmit,
-    setAttachments,
-    setLocalStorageInput,
-    width,
-    input,
-    status,
-    isSubmitting,
-    isSubmittingRef,
-  ]);
+      if (width && width > 768) {
+        textareaRef.current?.focus();
+      }
+    },
+    [
+      attachments,
+      handleSubmit,
+      setAttachments,
+      setLocalStorageInput,
+      width,
+      input,
+      status,
+      isSubmitting,
+      isSubmittingRef,
+    ]
+  );
 
   const uploadFile = async (file: File) => {
     const formData = new FormData();
@@ -312,11 +316,7 @@ function PureMultimodalInput({
           onImageSelect={(imageUrl) => {
             // When user selects an image, add it to input
             const imageReference = `![Generated Image](${imageUrl})`;
-            setInput((prevInput) => {
-              const newInput =
-                prevInput + (prevInput ? "\n\n" : "") + imageReference;
-              return newInput;
-            });
+            setInput(input + (input ? "\n\n" : "") + imageReference);
             // Optionally close the history after selection
             setShowImageHistory(false);
             // Focus textarea
@@ -354,7 +354,7 @@ function PureMultimodalInput({
             if (status !== "ready") {
               toast.error("Please wait for the model to finish its response!");
             } else {
-              submitForm();
+              submitForm(event);
             }
           }
         }}
@@ -411,7 +411,7 @@ function PureAttachmentsButton({
   status,
 }: {
   fileInputRef: React.MutableRefObject<HTMLInputElement | null>;
-  status: UseChatHelpers["status"];
+  status: UseChatHelpers<any>["status"];
 }) {
   return (
     <Button
@@ -436,7 +436,7 @@ function PureStopButton({
   setMessages,
 }: {
   stop: () => void;
-  setMessages: UseChatHelpers["setMessages"];
+  setMessages: UseChatHelpers<any>["setMessages"];
 }) {
   return (
     <Button
@@ -445,7 +445,7 @@ function PureStopButton({
       onClick={(event) => {
         event.preventDefault();
         stop();
-        setMessages((messages) => messages);
+        setMessages((messages: UIMessage[]) => messages);
       }}
     >
       <StopIcon size={14} />
@@ -463,15 +463,15 @@ function PureSendButton({
   isSubmitting,
   isSubmittingRef,
 }: {
-  submitForm: () => void;
+  submitForm: (event: any) => void;
   input: string;
   uploadQueue: Array<string>;
-  status: UseChatHelpers["status"];
+  status: UseChatHelpers<any>["status"];
   isSubmitting?: boolean;
   isSubmittingRef?: React.MutableRefObject<boolean>;
 }) {
   const isDisabled =
-    input.length === 0 ||
+    input?.length === 0 ||
     uploadQueue.length > 0 ||
     status !== "ready" ||
     isSubmitting ||
@@ -483,7 +483,7 @@ function PureSendButton({
       className="rounded-full p-1.5 h-fit border dark:border-zinc-600"
       onClick={(event) => {
         event.preventDefault();
-        submitForm();
+        submitForm(event);
       }}
       disabled={isDisabled}
       style={{
@@ -514,7 +514,7 @@ function PureImageHistoryButton({
 }: {
   showImageHistory: boolean;
   setShowImageHistory: (show: boolean) => void;
-  status: UseChatHelpers["status"];
+  status: UseChatHelpers<any>["status"];
 }) {
   return (
     <Button

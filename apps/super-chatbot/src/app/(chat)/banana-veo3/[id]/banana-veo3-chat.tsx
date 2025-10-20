@@ -67,9 +67,9 @@ export function BananaVeo3Chat({
       messages: initialMessages.map((m) => ({
         id: m.id,
         role: m.role,
-        content: m.content?.substring(0, 50),
+        content: (m as any).content?.substring(0, 50),
         partsLength: m.parts?.length,
-        hasContent: !!m.content,
+        hasContent: !!(m as any).content,
         hasParts: !!m.parts,
       })),
     });
@@ -96,10 +96,9 @@ export function BananaVeo3Chat({
     const userMessage: UIMessage = {
       id: generateUUID(),
       role: "user",
-      content: input,
       parts: [{ type: "text", text: input }],
       createdAt: new Date(),
-    };
+    } as any;
 
     // Добавляем сообщение пользователя
     setMessages((prev) => [...prev, userMessage]);
@@ -125,10 +124,9 @@ export function BananaVeo3Chat({
         const assistantMessage: UIMessage = {
           id: data.messageId || generateUUID(),
           role: "assistant",
-          content: data.response,
           parts: [{ type: "text", text: data.response }],
           createdAt: new Date(),
-        };
+        } as any;
 
         setMessages((prev) => [...prev, assistantMessage]);
       } else {
@@ -140,7 +138,6 @@ export function BananaVeo3Chat({
       const errorMessage: UIMessage = {
         id: generateUUID(),
         role: "assistant",
-        content: `Ошибка: ${error instanceof Error ? error.message : "Неизвестная ошибка"}`,
         parts: [
           {
             type: "text",
@@ -148,7 +145,7 @@ export function BananaVeo3Chat({
           },
         ],
         createdAt: new Date(),
-      };
+      } as any;
 
       setMessages((prev) => [...prev, errorMessage]);
     } finally {
@@ -308,7 +305,7 @@ export function BananaVeo3Chat({
                   Welcome to Banana + VEO3!
                 </h2>
                 <p className="text-gray-400 text-base">
-                  Specialized AI for GPU inference and video generation
+                  Specialized AI for image and video generation
                 </p>
               </div>
 
@@ -320,7 +317,7 @@ export function BananaVeo3Chat({
                       <Banana className="w-5 h-5 text-yellow-500" />
                     </div>
                     <h4 className="font-bold text-yellow-500 text-base">
-                      Banana GPU Inference
+                      Banana
                     </h4>
                   </div>
                   <ul className="text-xs text-gray-300 space-y-1">
@@ -373,9 +370,9 @@ export function BananaVeo3Chat({
                   console.log("🍌 Rendering message:", {
                     id: message.id,
                     role: message.role,
-                    content: message.content,
+                    content: (message as any).content,
                     parts: message.parts,
-                    hasContent: !!message.content,
+                    hasContent: !!(message as any).content,
                     hasParts: !!message.parts,
                   });
                 }
@@ -401,7 +398,7 @@ export function BananaVeo3Chat({
                       }`}
                     >
                       <div className="whitespace-pre-wrap break-words leading-relaxed text-sm">
-                        {message.content ||
+                        {(message as any).content ||
                           message.parts?.map((part: any, i: number) => {
                             // Поддержка разных форматов parts
                             if (part.type === "text" || part.text) {
@@ -456,7 +453,7 @@ export function BananaVeo3Chat({
                 placeholder={
                   isReadonly
                     ? "This chat is read-only"
-                    : "Ask about Banana GPU inference or VEO3 video generation..."
+                    : "Ask about Banana or VEO3 video generation..."
                 }
                 disabled={isLoading || isReadonly}
                 className="min-h-[70px] pr-16 resize-none bg-zinc-900 border-2 border-zinc-800 focus:border-blue-500 rounded-2xl shadow-sm transition-all placeholder:text-gray-500 text-gray-100"

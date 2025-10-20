@@ -1,8 +1,9 @@
 "use client";
+
 import { Artifact } from "@/components/artifacts/create-artifact";
-import { Markdown } from "@/components/common/markdown";
-import { CopyIcon, ShareIcon } from "@/components/common/icons";
+import { CopyIcon, ShareIcon, DownloadIcon } from "@/components/common/icons";
 import { toast } from "sonner";
+import { Markdown } from "@/components";
 
 export const scriptArtifact = new Artifact<"script">({
   kind: "script",
@@ -78,14 +79,14 @@ export const scriptArtifact = new Artifact<"script">({
       });
     }
   },
-  content: ({ content, title }) => (
-    <div className="p-8 md:p-20 max-w-3xl mx-auto">
-      <h2 className="text-2xl font-bold mb-4">{title}</h2>
-      <div className="prose dark:prose-invert">
+  content: ({ content, title }) => {
+    return (
+      <div className="p-8 md:p-20 max-w-4xl mx-auto w-full">
+        <h2 className="text-2xl font-bold mb-4">{title}</h2>
         <Markdown>{content}</Markdown>
       </div>
-    </div>
-  ),
+    );
+  },
   actions: [
     {
       icon: <CopyIcon size={18} />,
@@ -93,6 +94,20 @@ export const scriptArtifact = new Artifact<"script">({
       onClick: ({ content }) => {
         navigator.clipboard.writeText(content);
         toast.success("Copied to clipboard!");
+      },
+    },
+    {
+      icon: <DownloadIcon size={18} />,
+      description: "Download as .md file",
+      onClick: ({ content, title }) => {
+        const blob = new Blob([content], { type: "text/markdown" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${title?.substring(0, 50)}.md`;
+        a.click();
+        URL.revokeObjectURL(url);
+        toast.success("Script downloaded!");
       },
     },
     {

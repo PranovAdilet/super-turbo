@@ -20,7 +20,7 @@ import { sheetDocumentHandler } from "@/artifacts/sheet/server";
 import { textDocumentHandler } from "@/artifacts/text/server";
 import { videoDocumentHandler } from "@/artifacts/video/server";
 import type { ArtifactKind } from "@/components/artifacts/artifact";
-import type { DataStreamWriter } from "ai";
+// DataStreamWriter removed in AI SDK v5
 import type { Document } from "../db/schema";
 import { saveDocument } from "../db/queries";
 import type { Session } from "next-auth";
@@ -39,21 +39,19 @@ export interface CreateDocumentCallbackProps {
   id: string;
   title: string;
   content?: string; // Optional content for artifacts that generate their own content
-  dataStream: DataStreamWriter;
   session: Session;
 }
 
 export interface UpdateDocumentCallbackProps {
   document: Document;
   description: string;
-  dataStream: DataStreamWriter;
   session: Session;
 }
 
 export interface DocumentHandler<T = ArtifactKind> {
   kind: T;
-  onCreateDocument: (args: CreateDocumentCallbackProps) => Promise<void>;
-  onUpdateDocument: (args: UpdateDocumentCallbackProps) => Promise<void>;
+  onCreateDocument: (args: CreateDocumentCallbackProps) => Promise<string>; // AI SDK v5: Returns draft content
+  onUpdateDocument: (args: UpdateDocumentCallbackProps) => Promise<string>; // AI SDK v5: Returns updated content
 }
 
 export function createDocumentHandler<T extends ArtifactKind>(config: {
@@ -73,17 +71,13 @@ export function createDocumentHandler<T extends ArtifactKind>(config: {
         id: args.id,
         title: args.title,
         content: args.content || "", // Now properly typed
-        dataStream: args.dataStream,
         session: args.session,
       });
 
       console.log("📄 Draft content generated:", draftContent);
 
-      // Send the content to the stream so it reaches the client
-      args.dataStream.writeData({
-        type: "text-delta",
-        content: draftContent,
-      });
+      // AICODE-NOTE: AI SDK 5.0 - data is now sent via tool return value, not dataStream
+      // Content will be sent to client through the tool's return value
 
       // AICODE-FIX: Only save to database if we have meaningful content
       // For image/video artifacts, only save when generation is completed
@@ -91,9 +85,8 @@ export function createDocumentHandler<T extends ArtifactKind>(config: {
         args.session?.user?.id &&
         (config.kind === "text" || // Text artifacts can be saved immediately
           config.kind === "sheet" || // Sheet artifacts can be saved immediately
-          (config.kind === "image" &&
-            draftContent &&
-            JSON.parse(draftContent || "{}").status === "completed") ||
+          config.kind === "script" || // Script artifacts can be saved immediately (content is pre-generated)
+          (config.kind === "image" && !!draftContent) ||
           (config.kind === "video" &&
             draftContent &&
             JSON.parse(draftContent || "{}").status === "completed"));
@@ -143,7 +136,8 @@ export function createDocumentHandler<T extends ArtifactKind>(config: {
         );
       }
 
-      return;
+      // AI SDK v5: Return draft content to be sent to client via tool result
+      return draftContent;
     },
     onUpdateDocument: async (args: UpdateDocumentCallbackProps) => {
       console.log(
@@ -154,17 +148,13 @@ export function createDocumentHandler<T extends ArtifactKind>(config: {
       const draftContent = await config.onUpdateDocument({
         document: args.document,
         description: args.description,
-        dataStream: args.dataStream,
         session: args.session,
       });
 
       console.log("📄 Updated content generated:", draftContent);
 
-      // Send the updated content to the stream
-      args.dataStream.writeData({
-        type: "text-delta",
-        content: draftContent,
-      });
+      // AICODE-NOTE: AI SDK 5.0 - data is now sent via tool return value, not dataStream
+      // Updated content will be sent to client through the tool's return value
 
       // AICODE-FIX: Only save to database if we have meaningful content
       // For image/video artifacts, only save when generation is completed
@@ -203,7 +193,8 @@ export function createDocumentHandler<T extends ArtifactKind>(config: {
         );
       }
 
-      return;
+      // AI SDK v5: Return updated content to be sent to client via tool result
+      return draftContent;
     },
   };
 }
@@ -226,3 +217,12 @@ export const artifactKinds = [
   "video",
   "script",
 ] as const;
+
+// Zod-compatible enum format for AI SDK tool() parameters
+export const artifactKindsEnum = [
+  "text",
+  "image",
+  "sheet",
+  "video",
+  "script",
+] as [string, string, ...string[]];

@@ -3,7 +3,7 @@
 import type { UIMessage } from "ai";
 import cx from "classnames";
 import { AnimatePresence, motion } from "framer-motion";
-import { memo, useState } from "react";
+import { memo, useState, useEffect, useRef } from "react";
 import type { Vote } from "@/lib/db/schema";
 import { PencilEditIcon, SparklesIcon } from "../common/icons";
 import { MessageActions } from "./message-actions";
@@ -42,16 +42,89 @@ const PurePreviewMessage = ({
   message: UIMessage;
   vote: Vote | undefined;
   isLoading: boolean;
-  setMessages: UseChatHelpers["setMessages"];
-  reload: UseChatHelpers["reload"];
+  setMessages: UseChatHelpers<any>["setMessages"];
+  reload?: () => void; // AI SDK v5: reload type
   isReadonly: boolean;
   requiresScrollPadding: boolean;
   selectedChatModel: string;
   selectedVisibilityType: "public" | "private";
-  append?: UseChatHelpers["append"];
+  append?: (message: any, options?: any) => Promise<string | null | undefined>; // AI SDK v5: append type
 }) => {
   const [mode, setMode] = useState<"view" | "edit">("view");
-  const { setArtifact } = useArtifactLegacy();
+  const { setArtifact } = useArtifactLegacy(chatId);
+  const processedScriptsRef = useRef<Set<string>>(new Set());
+
+  // Debug: log message structure
+  if (message.role === "assistant" && message.parts) {
+    console.log("📨 Assistant message in message.tsx:", {
+      id: message.id,
+      role: message.role,
+      partsCount: message.parts.length,
+      parts: message.parts.map((p: any) => ({
+        type: p.type,
+        state: p.state,
+        toolName: p.toolName || p.toolCallId,
+      })),
+    });
+  }
+
+  // Add script attachments to the current message when createDocument tool result is detected
+  useEffect(() => {
+    if (message.role !== "assistant" || !message.parts || !setMessages) return;
+
+    // Find createDocument tool results for scripts
+    const scriptResults = message.parts.filter((part: any) => {
+      if (part.type?.startsWith('tool-') && part.state === 'output-available') {
+        const output = part.output;
+        return output?.kind === 'script' && output?.id;
+      }
+      return false;
+    });
+
+    if (scriptResults.length === 0) return;
+
+    // Process each script result
+    for (const part of scriptResults) {
+      const output = (part as any).output;
+      const scriptId = output.id;
+
+      // Skip if already processed
+      if (processedScriptsRef.current.has(scriptId)) continue;
+
+      console.log('📄 Found script in createDocument result, adding as attachment:', scriptId);
+      processedScriptsRef.current.add(scriptId);
+
+      // Add attachment to this message
+      setMessages((prev: any[]) => {
+        return prev.map(msg => {
+          if (msg.id !== message.id) return msg;
+
+          // Check if attachment already exists
+          const hasAttachment = msg.experimental_attachments?.some(
+            (att: any) => att.documentId === scriptId
+          );
+          if (hasAttachment) return msg;
+
+          const scriptAttachment = {
+            name: output.title?.length > 200
+              ? `${output.title.substring(0, 200)}...`
+              : output.title,
+            url: `${window.location.origin}/api/document?id=${scriptId}`,
+            contentType: 'text/markdown' as const,
+            documentId: scriptId,
+          };
+
+          return {
+            ...msg,
+            experimental_attachments: [
+              ...(msg.experimental_attachments || []),
+              scriptAttachment
+            ]
+          };
+        });
+      });
+    }
+  }, [message.id, message.parts, message.role, setMessages]);
 
   return (
     <AnimatePresence>
@@ -84,13 +157,13 @@ const PurePreviewMessage = ({
               "min-h-96": message.role === "assistant" && requiresScrollPadding,
             })}
           >
-            {message.experimental_attachments &&
-              message.experimental_attachments.length > 0 && (
+            {(message as any).experimental_attachments &&
+              (message as any).experimental_attachments.length > 0 && (
                 <div
                   data-testid={`message-attachments`}
                   className="flex flex-row justify-end gap-2"
                 >
-                  {message.experimental_attachments.map((attachment) => (
+                  {(message as any).experimental_attachments.map((attachment: any) => (
                     <PreviewAttachment
                       key={attachment.url}
                       attachment={attachment}
@@ -109,18 +182,38 @@ const PurePreviewMessage = ({
                   <MessageReasoning
                     key={key}
                     isLoading={isLoading}
-                    reasoning={part.reasoning}
+                    reasoning={(part as any).reasoning || part.text || ''}
                   />
                 );
               }
 
               if (type === "text") {
                 if (mode === "view") {
+                  // AI SDK v5: part.text can be string or array, normalize it
+                  const textContent = typeof part.text === 'string'
+                    ? part.text
+                    : Array.isArray(part.text)
+                      ? (part.text as any[]).map((item: any) => {
+                          // If array contains objects with 'type' and 'text', extract text
+                          if (typeof item === 'object' && item !== null && 'text' in item) {
+                            return item.text;
+                          }
+                          // If array contains strings, use them directly
+                          return typeof item === 'string' ? item : '';
+                        }).join('')
+                      : '';
+
+                  // Skip rendering if this is a raw JSON tool-call message
+                  if (textContent?.trim().startsWith('{"type":"tool-')) {
+                    console.log("📝 Skipping raw JSON tool-call message:", textContent.substring(0, 100));
+                    return null;
+                  }
+
                   // --- EMBED ARTIFACT (image/video/text) ---
                   let artifact: any = null;
-                  if (part.text.startsWith("```json")) {
+                  if (textContent?.startsWith("```json")) {
                     try {
-                      const jsonMatch = part.text.match(
+                      const jsonMatch = textContent.match(
                         /```json\s*({[\s\S]*?})\s*```/
                       );
                       if (jsonMatch?.[1]) {
@@ -128,11 +221,11 @@ const PurePreviewMessage = ({
                       }
                     } catch {}
                   } else if (
-                    part.text.startsWith("{") &&
-                    part.text.endsWith("}")
+                    textContent?.startsWith("{") &&
+                    textContent.endsWith("}")
                   ) {
                     try {
-                      artifact = JSON.parse(part.text);
+                      artifact = JSON.parse(textContent);
                     } catch {}
                   }
                   if (
@@ -147,21 +240,31 @@ const PurePreviewMessage = ({
                       >
                         <div
                           className="cursor-pointer w-full"
-                          onClick={() => {
-                            setArtifact({
+                          onClick={async () => {
+                            const newArtifact = {
                               title: artifact.title || "",
                               documentId: artifact.documentId,
-                              kind: "text",
+                              kind: "text" as const,
                               content: artifact.content,
                               isVisible: true,
-                              status: "idle",
+                              status: "idle" as const,
                               boundingBox: {
                                 top: 0,
                                 left: 0,
                                 width: 0,
                                 height: 0,
                               },
-                            });
+                            };
+
+                            // ВАЖНО: Сначала сохраняем в localStorage с isVisible: true
+                            // чтобы предотвратить закрытие при восстановлении из useEffect
+                            if (typeof window !== 'undefined' && chatId) {
+                              const { saveArtifactToStorage } = await import('@/lib/utils/artifact-persistence');
+                              saveArtifactToStorage(chatId, newArtifact);
+                            }
+
+                            // Затем открываем артефакт
+                            setArtifact(newArtifact);
                           }}
                         >
                           <ScriptArtifactViewer
@@ -174,8 +277,8 @@ const PurePreviewMessage = ({
                   }
                   // --- END EMBED ---
                   // Check if this is a resolution selection message
-                  if (part.text.startsWith("Выбрано разрешение:")) {
-                    const resolutionMatch = part.text.match(
+                  if (textContent?.startsWith("Выбрано разрешение:")) {
+                    const resolutionMatch = textContent.match(
                       /разрешение: (\d+)x(\d+), стиль: (.+?), размер кадра: (.+?), модель: (.+?)(?:, сид: (\d+))?$/
                     );
                     if (resolutionMatch) {
@@ -242,7 +345,7 @@ const PurePreviewMessage = ({
                             message.role === "user",
                         })}
                       >
-                        <Markdown>{sanitizeText(part.text)}</Markdown>
+                        <Markdown>{sanitizeText(textContent)}</Markdown>
                       </div>
                     </div>
                   );
@@ -268,56 +371,30 @@ const PurePreviewMessage = ({
                 }
               }
 
-              if (type === "tool-invocation") {
-                const { toolInvocation } = part;
-                const { toolName, toolCallId, state, args } = toolInvocation;
+              // AI SDK v5: "tool-invocation" type no longer exists
+              // Tool parts now use types like "tool-configureImageGeneration", "tool-createDocument", etc.
+              // Check for tool types using startsWith('tool-')
+              if (type?.startsWith('tool-')) {
+                const toolName = type.replace('tool-', '');
+                const toolCallId = (part as any).toolCallId || '';
+                const state = (part as any).state || 'unknown';
+                const args = (part as any).input;
+                const output = (part as any).output;
 
-                if (state === "call") {
+                // Debug: log all tool invocations
+                console.log("🔍 Tool detected in message.tsx:", {
+                  toolName,
+                  state,
+                  hasOutput: state === "output-available" && !!output,
+                  output: state === "output-available" ? output : undefined,
+                });
+
+                if (state === "call" || state === "input-streaming") {
                   return null;
                 }
 
-                if (state === "result") {
-                  const { result } = toolInvocation;
-
-                  if (
-                    toolName === "configureScriptGeneration" &&
-                    result &&
-                    typeof result === "object" &&
-                    "id" in result &&
-                    "title" in result
-                  ) {
-                    return (
-                      <div
-                        key={toolCallId}
-                        className="flex flex-row gap-2 items-start"
-                      >
-                        <div
-                          className="cursor-pointer w-full"
-                          onClick={() => {
-                            setArtifact({
-                              title: result.title as string,
-                              documentId: result.id as string,
-                              kind: "script",
-                              content: "", // Content will be fetched in the artifact viewer
-                              isVisible: true,
-                              status: "idle",
-                              boundingBox: {
-                                top: 0,
-                                left: 0,
-                                width: 0,
-                                height: 0,
-                              },
-                            });
-                          }}
-                        >
-                          <ScriptArtifactViewer
-                            title={result.title as string}
-                            content={""}
-                          />
-                        </div>
-                      </div>
-                    );
-                  }
+                if (state === "output-available" || state === "result") {
+                  const result = output;
 
                   // Handle image generation configuration
                   if (
@@ -367,6 +444,83 @@ const PurePreviewMessage = ({
                           selectedVisibilityType={selectedVisibilityType}
                           {...(append && { append })}
                         />
+                      </div>
+                    );
+                  }
+
+                  // REMOVED: configureScriptGeneration handling
+                  // Scripts are now automatically displayed through createDocument tool result
+                  // No need for special handling here
+
+                  // Handle createDocument tool result - opens artifact viewer
+                  if (
+                    toolName === "createDocument" &&
+                    result &&
+                    typeof result === "object" &&
+                    "id" in result &&
+                    "kind" in result &&
+                    "title" in result
+                  ) {
+                    const artifactKind = result.kind as string;
+
+                    // Parse title for image/video artifacts to get human-readable version
+                    let displayTitle = result.title as string;
+                    try {
+                      if (artifactKind === "image" || artifactKind === "video") {
+                        // Title might be JSON with parameters
+                        if (displayTitle.startsWith("{")) {
+                          const titleParams = JSON.parse(displayTitle);
+                          displayTitle = titleParams.prompt || `AI Generated ${artifactKind}`;
+                        }
+                      }
+                    } catch {
+                      // Keep original title if parsing fails
+                    }
+
+                    console.log("🎨 createDocument tool result received:", {
+                      id: result.id,
+                      kind: artifactKind,
+                      title: displayTitle,
+                    });
+
+                    // Automatically open artifact when document is created
+                    // Use setTimeout to ensure state updates after render
+                    setTimeout(() => {
+                      setArtifact({
+                        title: displayTitle,
+                        documentId: result.id as string,
+                        kind: artifactKind as any,
+                        content: "", // Content will be loaded from database
+                        isVisible: true,
+                        status: "pending", // Set to pending initially for image/video
+                        boundingBox: {
+                          top: 0,
+                          left: 0,
+                          width: 0,
+                          height: 0,
+                        },
+                      });
+
+                    }, 100);
+
+                    // Show a loading message for artifacts
+                    return (
+                      <div
+                        key={toolCallId}
+                        className="flex flex-row gap-2 items-start"
+                      >
+                        <div className="w-full p-3 bg-muted rounded-lg">
+                          <div className="flex items-center gap-2">
+                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent" />
+                            <span className="text-sm text-muted-foreground">
+                              {artifactKind === "image" && "Generating image..."}
+                              {artifactKind === "video" && "Generating video..."}
+                              {artifactKind === "text" && "Creating document..."}
+                              {artifactKind === "sheet" && "Creating spreadsheet..."}
+                              {artifactKind === "script" && "Creating script..."}
+                            </span>
+                          </div>
+                        </div>
                       </div>
                     );
                   }

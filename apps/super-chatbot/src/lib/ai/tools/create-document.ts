@@ -1,24 +1,23 @@
 import { generateUUID } from "@/lib/utils";
-import { type DataStreamWriter, tool } from "ai";
+import { tool } from "ai";
 import { z } from "zod";
 import type { Session } from "next-auth";
 import {
-  artifactKinds,
+  artifactKindsEnum,
   documentHandlersByArtifactKind,
 } from "@/lib/artifacts/server";
 
 interface CreateDocumentProps {
   session: Session;
-  dataStream: DataStreamWriter;
 }
 
-export const createDocument = ({ session, dataStream }: CreateDocumentProps) =>
+export const createDocument = ({ session }: CreateDocumentProps) =>
   tool({
     description:
       "Create a document for a writing or content creation activities. This tool will call other functions that will generate the contents of the document based on the title and kind.",
-    parameters: z.object({
+    inputSchema: z.object({
       title: z.string(),
-      kind: z.enum(artifactKinds),
+      kind: z.enum(artifactKindsEnum),
       content: z.string().optional(),
     }),
     execute: async ({ title, kind, content }) => {
@@ -31,29 +30,9 @@ export const createDocument = ({ session, dataStream }: CreateDocumentProps) =>
       const id = generateUUID();
       console.log("📄 GENERATED ID:", id);
 
-      console.log("📄 ✅ WRITING KIND TO DATA STREAM...");
-      dataStream.writeData({
-        type: "kind",
-        content: kind,
-      });
-
-      console.log("📄 ✅ WRITING ID TO DATA STREAM...");
-      dataStream.writeData({
-        type: "id",
-        content: id,
-      });
-
-      console.log("📄 ✅ WRITING TITLE TO DATA STREAM...");
-      dataStream.writeData({
-        type: "title",
-        content: title,
-      });
-
-      console.log("📄 ✅ WRITING CLEAR TO DATA STREAM...");
-      dataStream.writeData({
-        type: "clear",
-        content: "",
-      });
+      // AICODE-NOTE: AI SDK 5.0 removed support for custom data stream events
+      // Metadata (kind, id, title) is now sent via tool return value only
+      console.log("📄 ✅ DOCUMENT METADATA:", { kind, id, title });
 
       console.log("📄 🔍 LOOKING FOR DOCUMENT HANDLER FOR KIND:", kind);
       console.log(
@@ -73,15 +52,17 @@ export const createDocument = ({ session, dataStream }: CreateDocumentProps) =>
 
       console.log("📄 ✅ FOUND DOCUMENT HANDLER, CALLING onCreateDocument...");
 
+      // AI SDK v5: Get the actual draft content from the handler
+      let draftContent = "A document was created and is now visible to the user.";
       try {
-        await documentHandler.onCreateDocument({
+        draftContent = await documentHandler.onCreateDocument({
           id,
           title,
           content: content || "",
-          dataStream,
           session,
         });
         console.log("📄 ✅ DOCUMENT HANDLER COMPLETED SUCCESSFULLY");
+        console.log("📄 ✅ DRAFT CONTENT (first 200 chars):", draftContent.substring(0, 200));
       } catch (error) {
         console.error("📄 ❌ DOCUMENT HANDLER ERROR:", error);
         console.error(
@@ -91,14 +72,14 @@ export const createDocument = ({ session, dataStream }: CreateDocumentProps) =>
         throw error;
       }
 
-      console.log("📄 ✅ WRITING FINISH TO DATA STREAM...");
-      dataStream.writeData({ type: "finish", content: "" });
+      // AICODE-NOTE: AI SDK 5.0 - 'finish' event removed, tool completion signals finish
+      console.log("📄 ✅ DOCUMENT HANDLER COMPLETE");
 
       const result = {
         id,
         title,
         kind,
-        content: "A document was created and is now visible to the user.",
+        content: draftContent, // AI SDK v5: Return actual draft content with projectId/fileId
       };
 
       console.log("📄 ✅ RETURNING RESULT:", result);

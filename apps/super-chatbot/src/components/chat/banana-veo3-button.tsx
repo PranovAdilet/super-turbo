@@ -16,7 +16,7 @@ export function BananaVeo3Button() {
         <div className="flex-1 min-w-0">
           <div className="font-medium text-sm">Banana + VEO3</div>
           <div className="text-xs text-muted-foreground truncate">
-            GPU inference + Video generation
+            Video generation
           </div>
         </div>
       </div>

@@ -1,8 +1,11 @@
-import "@testing-library/jest-dom";
-import { vi } from "vitest";
+import '@testing-library/jest-dom';
+import { vi } from 'vitest';
+
+// Mock server-only to allow imports in tests
+vi.mock('server-only', () => ({}));
 
 // Mock Next.js router
-vi.mock("next/navigation", () => ({
+vi.mock('next/navigation', () => ({
   useRouter: () => ({
     push: vi.fn(),
     replace: vi.fn(),
@@ -12,20 +15,20 @@ vi.mock("next/navigation", () => ({
     refresh: vi.fn(),
   }),
   useSearchParams: () => new URLSearchParams(),
-  usePathname: () => "/",
+  usePathname: () => '/',
 }));
 
 // Mock Next.js auth
-vi.mock("next-auth/react", () => ({
+vi.mock('next-auth/react', () => ({
   useSession: () => ({
     data: {
       user: {
-        id: "test-user-id",
-        email: "test@example.com",
-        name: "Test User",
+        id: 'test-user-id',
+        email: 'test@example.com',
+        name: 'Test User',
       },
     },
-    status: "authenticated",
+    status: 'authenticated',
   }),
   signIn: vi.fn(),
   signOut: vi.fn(),
@@ -35,7 +38,7 @@ vi.mock("next-auth/react", () => ({
 // This returns FACTORY FUNCTIONS that create new mocks each time they're called
 // This way, when auth.ts calls NextAuth(), it gets a fresh set of mocks
 // that test files can then configure with mockResolvedValue, etc.
-vi.mock("next-auth", () => ({
+vi.mock('next-auth', () => ({
   default: () => ({
     handlers: { GET: vi.fn(), POST: vi.fn() },
     auth: vi.fn(),
@@ -45,10 +48,9 @@ vi.mock("next-auth", () => ({
 }));
 
 // Mock next/server for next-auth and API routes
-vi.mock("next/server", () => {
+vi.mock('next/server', () => {
   // Use the global Request class from Node.js as the base for NextRequest
-  class MockNextRequest extends Request {
-  }
+  class MockNextRequest extends Request {}
 
   return {
     NextResponse: {
@@ -65,11 +67,11 @@ vi.mock("next/server", () => {
 });
 
 // Mock environment variables
-vi.mock("process", () => ({
+vi.mock('process', () => ({
   env: {
-    NODE_ENV: "test",
-    SUPERDUPERAI_URL: "https://test-api.example.com",
-    SUPERDUPERAI_TOKEN: "test-token",
+    NODE_ENV: 'test',
+    SUPERDUPERAI_URL: 'https://test-api.example.com',
+    SUPERDUPERAI_TOKEN: 'test-token',
   },
 }));
 

@@ -18,7 +18,7 @@ import {
   SelectValue,
 } from "../../../../components/ui";
 import { Switch } from "../../../../components/ui";
-import { BookOpen, Search, Filter, } from "lucide-react";
+import { BookOpen, Search, Filter } from "lucide-react";
 import type { NanoBananaStyleGuideRequest } from "../api/nano-banana-api";
 
 interface NanoBananaStyleGuideFormProps {
@@ -59,32 +59,24 @@ export function NanoBananaStyleGuideForm({
   const [limit, setLimit] = useState(10);
 
   const categories = [
-    "photography",
-    "digital_art",
-    "traditional_art",
+    "realistic",
     "cinematic",
-    "architectural",
+    "artistic",
+    "fantasy",
+    "sci-fi",
     "portrait",
     "landscape",
-    "abstract",
-    "minimalist",
-    "vintage",
+    "macro",
   ];
 
   const techniques = [
-    "lighting",
-    "composition",
-    "color_grading",
-    "texture",
-    "depth_of_field",
-    "perspective",
-    "mood",
-    "atmosphere",
-    "contrast",
-    "balance",
+    "context-aware-editing",
+    "surgical-precision",
+    "lighting-mastery",
+    "physical-logic",
   ];
 
-  const difficulties = ["beginner", "intermediate", "advanced", "expert"];
+  const difficulties = ["beginner", "intermediate", "advanced"];
 
   const popularTags = [
     "golden_hour",
@@ -132,14 +124,14 @@ export function NanoBananaStyleGuideForm({
   };
 
   return (
-    <Card className="w-full">
+    <Card className="w-full bg-card border-border">
       <CardHeader>
         <CardTitle className="flex items-center space-x-2">
-          <BookOpen className="size-5 text-blue-600" />
-          <span>Nano Banana Style Guide</span>
+          <BookOpen className="size-5 text-primary" />
+          <span className="text-foreground">Nano Banana Style Guide</span>
           <Badge
             variant="secondary"
-            className="ml-auto"
+            className="ml-auto bg-primary/10 text-primary border-primary/20"
           >
             AI-Powered
           </Badge>
@@ -177,7 +169,7 @@ export function NanoBananaStyleGuideForm({
                 Load All
               </Button>
             </div>
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-muted-foreground">
               Search for specific styles, techniques, or concepts in the style
               guide.
             </p>
@@ -322,7 +314,7 @@ export function NanoBananaStyleGuideForm({
                 </Button>
               ))}
             </div>
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-muted-foreground">
               Click tags to filter by specific concepts or styles.
             </p>
           </div>
@@ -332,15 +324,19 @@ export function NanoBananaStyleGuideForm({
           {/* Display Options */}
           <div className="space-y-4">
             <div className="flex items-center space-x-2">
-              <Filter className="size-4 text-gray-500" />
-              <Label className="text-sm font-medium">Display Options</Label>
+              <Filter className="size-4 text-muted-foreground" />
+              <Label className="text-sm font-medium text-foreground">
+                Display Options
+              </Label>
             </div>
 
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
-                  <Label className="text-sm font-medium">Include Tips</Label>
-                  <p className="text-xs text-gray-500">
+                  <Label className="text-sm font-medium text-foreground">
+                    Include Tips
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
                     Show practical tips and techniques
                   </p>
                 </div>
@@ -353,10 +349,10 @@ export function NanoBananaStyleGuideForm({
 
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
-                  <Label className="text-sm font-medium">
+                  <Label className="text-sm font-medium text-foreground">
                     Include Examples
                   </Label>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-muted-foreground">
                     Show example prompts and descriptions
                   </p>
                 </div>

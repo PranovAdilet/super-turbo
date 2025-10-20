@@ -24,9 +24,9 @@ import { convertDBMessagesToUIMessages } from "@/lib/types/message-conversion";
 export const maxDuration = 60;
 
 // Продвинутый промпт для Banana + VEO3 с инструментами
-const advancedBananaVeo3SystemPrompt = `Ты - эксперт по Banana GPU Inference и VEO3 Video Generation с доступом к реальным API.
+const advancedBananaVeo3SystemPrompt = `Ты - эксперт по Banana и VEO3 Video Generation с доступом к реальным API.
 
-🍌 **BANANA GPU INFERENCE:**
+🍌 **BANANA :**
 - У тебя есть доступ к реальным Banana API через инструменты
 - Можешь запускать inference на различных моделях
 - Можешь получать список доступных моделей
@@ -98,18 +98,18 @@ export async function POST(request: NextRequest) {
     const allMessages = convertDBMessagesToUIMessages(previousMessages);
 
     // Добавляем новое сообщение пользователя
-    allMessages.push({
+    const userMessage = {
       id: message.id || generateUUID(),
-      role: "user",
-      content: message.content || message.parts?.[0]?.text || "",
+      role: "user" as const,
       parts: [
         {
           text: message.content || message.parts?.[0]?.text || "",
-          type: "text",
+          type: "text" as const,
         },
       ],
       createdAt: new Date(),
-    });
+    };
+    allMessages.push(userMessage);
 
     console.log(
       "🍌🎬 Advanced Banana+VEO3 API with tools:",
@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
     const result = streamText({
       model: myProvider.languageModel("gemini-2.5-flash-lite"),
       system: advancedBananaVeo3SystemPrompt,
-      messages: allMessages,
+      messages: allMessages as any,
       tools: {
         bananaInference: bananaInferenceTool,
         listBananaModels: listBananaModelsTool,
@@ -129,8 +129,6 @@ export async function POST(request: NextRequest) {
         checkVeo3VideoStatus: checkVeo3VideoStatusTool,
         generateVeo3Ideas: generateVeo3IdeasTool,
       },
-      maxSteps: 10,
-      experimental_generateMessageId: generateUUID,
       onFinish: async ({ response }) => {
         console.log("🍌🎬 Advanced Banana+VEO3 response finished");
 
@@ -141,15 +139,15 @@ export async function POST(request: NextRequest) {
             );
 
             for (const assistantMessage of assistantMessages) {
+              const msgAny = assistantMessage as any;
               await saveMessages({
                 messages: [
                   {
                     chatId: id,
-                    id: assistantMessage.id,
+                    id: msgAny.id || generateUUID(),
                     role: "assistant",
-                    parts: (assistantMessage as any)?.parts,
-                    attachments:
-                      (assistantMessage as any)?.experimental_attachments ?? [],
+                    parts: msgAny?.parts,
+                    attachments: msgAny?.experimental_attachments ?? [],
                     createdAt: new Date(),
                   },
                 ],
@@ -167,7 +165,8 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return result.toDataStreamResponse();
+    // AI SDK v5: Use toUIMessageStreamResponse() - compatible with @ai-sdk/react 2.x
+    return result.toUIMessageStreamResponse();
   } catch (error) {
     console.error("🍌🎬 Advanced Banana+VEO3 API error:", error);
 

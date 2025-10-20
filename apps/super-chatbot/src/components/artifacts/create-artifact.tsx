@@ -12,6 +12,7 @@ export type ArtifactActionContext<M = any> = {
   mode: "edit" | "diff";
   metadata: M;
   setMetadata: Dispatch<SetStateAction<M>>;
+  title?: string;
 };
 
 type ArtifactAction<M = any> = {
@@ -23,7 +24,7 @@ type ArtifactAction<M = any> = {
 };
 
 export type ArtifactToolbarContext = {
-  appendMessage: UseChatHelpers["append"];
+  appendMessage?: (message: any, options?: any) => Promise<string | null | undefined>; // AI SDK v5: append type
 };
 
 export type ArtifactToolbarItem = {
@@ -46,8 +47,8 @@ interface ArtifactContent<M = any> {
   isLoading: boolean;
   metadata: M;
   setMetadata: Dispatch<SetStateAction<M>>;
-  append?: UseChatHelpers["append"];
-  setMessages?: UseChatHelpers["setMessages"];
+  append?: (message: any, options?: any) => Promise<string | null | undefined>; // AI SDK v5: append type
+  setMessages?: UseChatHelpers<any>["setMessages"];
   setArtifact?: Dispatch<SetStateAction<UIArtifact>>;
   chatId?: string;
   documentId?: string;

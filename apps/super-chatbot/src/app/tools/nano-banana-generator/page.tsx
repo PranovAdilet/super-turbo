@@ -1,5 +1,5 @@
 // AICODE-NOTE: Main page for Nano Banana Generator
-// Integrates all four main functionalities: generation, editing, prompt enhancement, and style guide
+// Integrates all four main functionalities: unified generation/editing, prompt enhancement, and style guide
 
 "use client";
 
@@ -9,7 +9,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@turbo-super/ui";
 import { Badge } from "@turbo-super/ui";
 import {
   Wand2,
-  Edit3,
   Sparkles,
   BookOpen,
   Zap,
@@ -25,12 +24,10 @@ import { useNanoBananaPromptEnhancer } from "./hooks/use-nano-banana-prompt-enha
 import { useNanoBananaStyleGuide } from "./hooks/use-nano-banana-style-guide";
 
 // Components
-import { NanoBananaGeneratorForm } from "./components/nano-banana-generator-form";
-import { NanoBananaEditorForm } from "./components/nano-banana-editor-form";
+import { NanoBananaUnifiedForm } from "./components/nano-banana-unified-form";
+import { NanoBananaUnifiedGallery } from "./components/nano-banana-unified-gallery";
 import { NanoBananaPromptEnhancerForm } from "./components/nano-banana-prompt-enhancer-form";
 import { NanoBananaStyleGuideForm } from "./components/nano-banana-style-guide-form";
-import { NanoBananaGallery } from "./components/nano-banana-gallery";
-import { NanoBananaEditedGallery } from "./components/nano-banana-edited-gallery";
 import { NanoBananaEnhancedPromptDisplay } from "./components/nano-banana-enhanced-prompt-display";
 import { NanoBananaStyleGuideDisplay } from "./components/nano-banana-style-guide-display";
 
@@ -77,17 +74,10 @@ export default function NanoBananaGeneratorPage() {
   const tabs = [
     {
       id: "generate",
-      label: "Generate",
+      label: "Generate & Edit",
       icon: Wand2,
-      description: "Create new images with AI",
+      description: "Create and edit images with AI",
       color: "text-blue-600",
-    },
-    {
-      id: "edit",
-      label: "Edit",
-      icon: Edit3,
-      description: "Edit existing images",
-      color: "text-green-600",
     },
     {
       id: "enhance",
@@ -128,8 +118,9 @@ export default function NanoBananaGeneratorPage() {
 
             <p className="text-lg text-gray-600 max-w-3xl mx-auto">
               Advanced AI image generation and editing with context awareness,
-              surgical precision, and physical logic understanding. Create,
-              edit, and enhance with cutting-edge AI technology.
+              surgical precision, and physical logic understanding. Create and
+              edit images in one unified interface with cutting-edge AI
+              technology.
             </p>
 
             {/* Feature highlights */}
@@ -163,7 +154,7 @@ export default function NanoBananaGeneratorPage() {
           className="space-y-6"
         >
           {/* Tab Navigation */}
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-3">
             {tabs.map((tab) => {
               const Icon = tab.icon;
               return (
@@ -181,54 +172,48 @@ export default function NanoBananaGeneratorPage() {
 
           {/* Tab Content */}
           <div className="space-y-6">
-            {/* Generate Tab */}
+            {/* Generate & Edit Tab */}
             <TabsContent
               value="generate"
               className="space-y-6"
             >
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <Suspense fallback={<div>Loading form...</div>}>
-                  <NanoBananaGeneratorForm
+                  <NanoBananaUnifiedForm
                     onGenerate={generator.generateImage}
-                    isGenerating={generator.isGenerating}
-                    config={config}
-                  />
-                </Suspense>
-                <Suspense fallback={<div>Loading gallery...</div>}>
-                  <NanoBananaGallery
-                    images={generator.generatedImages}
-                    currentGeneration={generator.currentGeneration}
-                    onDeleteImage={generator.deleteImage}
-                    onClearAll={generator.clearAllImages}
-                    onDownloadImage={generator.downloadImage}
-                    onCopyImageUrl={generator.copyImageUrl}
-                    isGenerating={generator.isGenerating}
-                  />
-                </Suspense>
-              </div>
-            </TabsContent>
-
-            {/* Edit Tab */}
-            <TabsContent
-              value="edit"
-              className="space-y-6"
-            >
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <Suspense fallback={<div>Loading form...</div>}>
-                  <NanoBananaEditorForm
                     onEdit={editor.editImage}
+                    isGenerating={generator.isGenerating}
                     isEditing={editor.isEditing}
                     config={config}
                   />
                 </Suspense>
                 <Suspense fallback={<div>Loading gallery...</div>}>
-                  <NanoBananaEditedGallery
-                    images={editor.editedImages}
+                  <NanoBananaUnifiedGallery
+                    generatedImages={generator.generatedImages}
+                    editedImages={editor.editedImages}
+                    currentGeneration={generator.currentGeneration}
                     currentEdit={editor.currentEdit}
-                    onDeleteImage={editor.deleteEditedImage}
-                    onClearAll={editor.clearAllEditedImages}
-                    onDownloadImage={editor.downloadEditedImage}
-                    onCopyImageUrl={editor.copyEditedImageUrl}
+                    onDeleteGeneratedImage={generator.deleteImage}
+                    onDeleteEditedImage={editor.deleteEditedImage}
+                    onClearAllGenerated={generator.clearAllImages}
+                    onClearAllEdited={editor.clearAllEditedImages}
+                    onDownloadGeneratedImage={(url, filename) => {
+                      const image = generator.generatedImages.find(img => img.url === url) || generator.currentGeneration;
+                      if (image) generator.downloadImage(image);
+                    }}
+                    onDownloadEditedImage={(url, filename) => {
+                      const image = editor.editedImages.find(img => img.url === url) || editor.currentEdit;
+                      if (image) editor.downloadEditedImage(image);
+                    }}
+                    onCopyGeneratedImageUrl={(url) => {
+                      const image = generator.generatedImages.find(img => img.url === url) || generator.currentGeneration;
+                      if (image) generator.copyImageUrl(image);
+                    }}
+                    onCopyEditedImageUrl={(url) => {
+                      const image = editor.editedImages.find(img => img.url === url) || editor.currentEdit;
+                      if (image) editor.copyEditedImageUrl(image);
+                    }}
+                    isGenerating={generator.isGenerating}
                     isEditing={editor.isEditing}
                   />
                 </Suspense>

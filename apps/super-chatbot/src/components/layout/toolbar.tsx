@@ -41,11 +41,11 @@ type ToolProps = {
   isToolbarVisible?: boolean;
   setIsToolbarVisible?: Dispatch<SetStateAction<boolean>>;
   isAnimating: boolean;
-  append: UseChatHelpers["append"];
+  append: (message: any, options?: any) => Promise<string | null | undefined>; // AI SDK v5: append type
   onClick: ({
     appendMessage,
   }: {
-    appendMessage: UseChatHelpers["append"];
+    appendMessage: (message: any, options?: any) => Promise<string | null | undefined>; // AI SDK v5: append type
   }) => void;
 };
 
@@ -142,7 +142,7 @@ const ReadingLevelSelector = ({
 }: {
   setSelectedTool: Dispatch<SetStateAction<string | null>>;
   isAnimating: boolean;
-  append: UseChatHelpers["append"];
+  append: (message: any, options?: any) => Promise<string | null | undefined>; // AI SDK v5: append type
 }) => {
   const LEVELS = [
     "Elementary",
@@ -253,7 +253,7 @@ export const Tools = ({
   isToolbarVisible: boolean;
   selectedTool: string | null;
   setSelectedTool: Dispatch<SetStateAction<string | null>>;
-  append: UseChatHelpers["append"];
+  append: (message: any, options?: any) => Promise<string | null | undefined>; // AI SDK v5: append type
   isAnimating: boolean;
   setIsToolbarVisible: Dispatch<SetStateAction<boolean>>;
   tools: Array<ArtifactToolbarItem>;
@@ -311,10 +311,10 @@ const PureToolbar = ({
 }: {
   isToolbarVisible: boolean;
   setIsToolbarVisible: Dispatch<SetStateAction<boolean>>;
-  status: UseChatHelpers["status"];
-  append: UseChatHelpers["append"];
-  stop: UseChatHelpers["stop"];
-  setMessages: UseChatHelpers["setMessages"];
+  status: UseChatHelpers<any>["status"];
+  append: (message: any, options?: any) => Promise<string | null | undefined>; // AI SDK v5: append type
+  stop: UseChatHelpers<any>["stop"];
+  setMessages: UseChatHelpers<any>["setMessages"];
   artifactKind: ArtifactKind;
 }) => {
   const toolbarRef = useRef<HTMLDivElement>(null);

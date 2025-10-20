@@ -18,8 +18,7 @@ export const maxDuration = 60;
 // Specialized prompt for Banana + VEO3
 const bananaVeo3SystemPrompt = `You are a specialized AI assistant for working with Banana and VEO3 technologies.
 
-🍌 **BANANA GPU INFERENCE:**
-- Banana is a platform for fast GPU inference
+🍌 **BANANA :**
 - Optimized for running AI models on GPU
 - Automatic resource scaling
 - Support for various frameworks (PyTorch, TensorFlow, etc.)

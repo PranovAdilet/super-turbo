@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { Session } from "next-auth";
-import { type DataStreamWriter, streamObject, tool } from "ai";
+import { streamObject, tool } from "ai";
 import { getDocumentById, saveSuggestions } from "@/lib/db/queries";
 import type { Suggestion } from "@/lib/db/schema";
 import { generateUUID } from "@/lib/utils";
@@ -8,16 +8,12 @@ import { myProvider } from "../providers";
 
 interface RequestSuggestionsProps {
   session: Session;
-  dataStream: DataStreamWriter;
 }
 
-export const requestSuggestions = ({
-  session,
-  dataStream,
-}: RequestSuggestionsProps) =>
+export const requestSuggestions = ({ session }: RequestSuggestionsProps) =>
   tool({
     description: "Request suggestions for a document",
-    parameters: z.object({
+    inputSchema: z.object({
       documentId: z
         .string()
         .describe("The ID of the document to request edits"),
@@ -58,10 +54,9 @@ export const requestSuggestions = ({
           isResolved: false,
         };
 
-        dataStream.writeData({
-          type: "suggestion",
-          content: suggestion,
-        });
+        // AICODE-NOTE: AI SDK 5.0 - custom 'suggestion' type removed
+        // Suggestions are now sent via tool return value only
+        // writer.writeData() removed - data sent through return statement
 
         suggestions.push(suggestion);
       }

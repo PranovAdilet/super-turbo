@@ -22,7 +22,7 @@ export const configureImageGeneration = (params?: CreateImageDocumentParams) =>
   tool({
     description:
       "Configure image generation settings or generate an image directly if prompt is provided. Supports text-to-image by default, and image-to-image when a sourceImageUrl is provided. When triggered, creates an image artifact that shows generation progress in real-time.",
-    parameters: z.object({
+    inputSchema: z.object({
       prompt: z
         .string()
         .optional()
@@ -327,9 +327,10 @@ export const configureImageGeneration = (params?: CreateImageDocumentParams) =>
 
           console.log("🔧 ✅ CREATE DOCUMENT RESULT:", result);
 
+          // Return tool result with confirmation message
           return {
             ...result,
-            message: `I'm creating ${operationType.replace("-", " ")} with description: "${prompt}". Using model "${selectedModel.name}" with ${selectedResolution.label} resolution. Artifact created and generation started.`,
+            message: `I'll create ${operationType.replace('-', ' ')} with description: "${prompt}". Using model "${selectedModel.name}" with ${selectedResolution.label} resolution and ${selectedShotSize.label} shot size. The artifact has been created and generation is starting.`,
           };
         } catch (error) {
           console.error("🔧 ❌ CREATE DOCUMENT ERROR:", error);
