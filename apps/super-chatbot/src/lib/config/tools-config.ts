@@ -27,13 +27,13 @@ export interface ToolConfig {
 
 export const TOOLS_CONFIG: ToolConfig[] = [
   {
-    id: 'image-generator',
+    id: 'image-generation',
     name: 'Image Generator',
     description:
       'Generate high-quality images using AI models like FLUX Pro, FLUX Dev, and more from SuperDuperAI',
     shortDescription: 'AI Image Generator',
     iconName: 'image',
-    href: '/tools/image-generator',
+    href: '/tools/image-generation',
     category: 'generation',
     features: [
       { iconName: 'sparkles', label: 'Professional Quality' },
@@ -45,13 +45,13 @@ export const TOOLS_CONFIG: ToolConfig[] = [
     hoverBgColor: 'blue-200',
   },
   {
-    id: 'video-generator',
+    id: 'video-generation',
     name: 'Video Generator',
     description:
       'Generate high-quality videos using AI models like VEO3, KLING, LTX, and more from SuperDuperAI',
     shortDescription: 'AI Video Generator',
     iconName: 'video',
-    href: '/tools/video-generator',
+    href: '/tools/video-generation',
     category: 'generation',
     features: [
       { iconName: 'play', label: 'Professional Quality' },

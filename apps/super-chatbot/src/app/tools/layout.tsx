@@ -7,12 +7,12 @@ const TOOL_TITLES: Record<string, { title: string; description: string }> = {
     description:
       'Powerful AI-powered tools for generating high-quality images, videos, and enhancing your prompts. Choose the tool that fits your creative needs.',
   },
-  '/tools/image-generator': {
+  '/tools/image-generation': {
     title: 'AI Image Generator',
     description:
       'Generate high-quality images using advanced AI models from SuperDuperAI. Create stunning visuals from text or images.',
   },
-  '/tools/video-generator': {
+  '/tools/video-generation': {
     title: 'AI Video Generator',
     description:
       'Generate high-quality videos using advanced AI models from SuperDuperAI. Create professional videos from text descriptions with models like VEO3, KLING, LTX, and more.',

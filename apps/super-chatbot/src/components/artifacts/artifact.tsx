@@ -121,7 +121,9 @@ function PureArtifact({
   attachments: Array<Attachment>;
   setAttachments: Dispatch<SetStateAction<Array<Attachment>>>;
   messages: Array<UIMessage>;
-  setMessages: (messages: UIMessage[] | ((messages: UIMessage[]) => UIMessage[])) => void; // AI SDK v5: setMessages accepts value or updater function
+  setMessages: (
+    messages: UIMessage[] | ((messages: UIMessage[]) => UIMessage[]),
+  ) => void; // AI SDK v5: setMessages accepts value or updater function
   votes: Array<Vote> | undefined;
   append: (message: any, options?: any) => Promise<string | null | undefined>; // AI SDK v5: append type
   handleSubmit: (event?: any, options?: any) => void; // AI SDK v5: handleSubmit type
@@ -147,12 +149,21 @@ function PureArtifact({
     }
   });
 
+  // Check if documentId is valid UUID (not empty, not 'init', not nano-banana ID)
+  const isValidDocumentId = (id: string) => {
+    if (!id || id === 'init' || id.startsWith('nano-banana-')) return false;
+    // Check if it's a valid UUID format
+    const uuidRegex =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    return uuidRegex.test(id);
+  };
+
   const {
     data: documents,
     isLoading: isDocumentsFetching,
     mutate: mutateDocuments,
   } = useSWR<Array<Document>>(
-    artifact.documentId !== 'init' && artifact.status !== 'streaming'
+    isValidDocumentId(artifact.documentId) && artifact.status !== 'streaming'
       ? `/api/document?id=${artifact.documentId}`
       : null,
     fetcher,
@@ -221,7 +232,7 @@ function PureArtifact({
 
           if (
             currentDocument.content !== updatedContent &&
-            artifact.documentId !== 'init'
+            isValidDocumentId(artifact.documentId)
           ) {
             await fetch(`/api/document?id=${artifact.documentId}`, {
               method: 'POST',
@@ -324,7 +335,7 @@ function PureArtifact({
   }
 
   useEffect(() => {
-    if (artifact.documentId !== 'init') {
+    if (isValidDocumentId(artifact.documentId)) {
       if (artifactDefinition.initialize) {
         artifactDefinition.initialize({
           documentId: artifact.documentId,

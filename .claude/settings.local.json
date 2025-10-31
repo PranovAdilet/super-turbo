@@ -40,7 +40,10 @@
       "Bash(git --no-pager log --oneline -10)",
       "Bash(git --no-pager diff HEAD~3)",
       "Bash(pnpm lint:fix)",
-      "Bash(pnpm exec biome check:*)"
+      "Bash(pnpm exec biome check:*)",
+      "Bash(git rm:*)",
+      "Bash(npx vitest:*)",
+      "Bash(pnpm vitest run:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 export async function GET() {
   try {
     // Проверяем, что API ключ установлен
-    const apiKey = process.env.GOOGLE_AI_API_KEY;
+    const apiKey = process.env.VERTEX_AI_API_KEY;
 
     if (!apiKey) {
       return NextResponse.json(

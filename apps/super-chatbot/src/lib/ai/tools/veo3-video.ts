@@ -1,60 +1,59 @@
 import { tool } from 'ai';
 import { z } from 'zod';
-import {
-  createVeo3Video,
-  getVeo3VideoStatus,
-  generateVeo3Ideas,
-} from '@/lib/ai/veo3-api';
+import { createVeo3Video, generateVeo3Ideas } from '@/lib/ai/veo3-api';
 
 export const createVeo3VideoTool = tool({
-  description: 'Создает видео с помощью VEO3 (Google Video Generation)',
+  description: 'Creates video using VEO3 (Google Video Generation) via Fal.ai',
   inputSchema: z.object({
-    prompt: z.string().describe('Описание видео для генерации'),
+    prompt: z.string().describe('Video description for generation'),
     duration: z
-      .number()
-      .min(1)
-      .max(60)
+      .enum(['4s', '6s', '8s'])
       .optional()
-      .describe('Длительность видео в секундах (1-60)'),
-    style: z
-      .enum(['realistic', 'animated', 'cinematic', 'documentary'])
-      .optional()
-      .describe('Стиль видео'),
+      .describe('Video duration (4s, 6s, or 8s)'),
     resolution: z
-      .enum(['720p', '1080p', '4k'])
+      .enum(['720p', '1080p'])
       .optional()
-      .describe('Разрешение видео'),
+      .describe('Video resolution'),
     aspectRatio: z
       .enum(['16:9', '9:16', '1:1'])
       .optional()
-      .describe('Соотношение сторон'),
-    seed: z
-      .number()
+      .describe('Aspect ratio'),
+    generateAudio: z
+      .boolean()
       .optional()
-      .describe('Seed для воспроизводимости результатов'),
+      .describe('Generate audio for the video'),
+    enhancePrompt: z.boolean().optional().describe('AI-enhance the prompt'),
+    negativePrompt: z
+      .string()
+      .optional()
+      .describe('What to avoid in the video'),
+    seed: z.number().optional().describe('Seed for reproducible results'),
   }),
   execute: async ({
     prompt,
     duration,
-    style,
     resolution,
     aspectRatio,
+    generateAudio,
+    enhancePrompt,
+    negativePrompt,
     seed,
   }) => {
     try {
       console.log('🎬 Creating VEO3 video:', {
         prompt,
         duration,
-        style,
         resolution,
       });
 
       const result = await createVeo3Video({
         prompt,
-        ...(duration !== undefined && { duration }),
-        ...(style && { style }),
+        ...(duration && { duration }),
         ...(resolution && { resolution }),
         ...(aspectRatio && { aspectRatio }),
+        ...(generateAudio !== undefined && { generateAudio }),
+        ...(enhancePrompt !== undefined && { enhancePrompt }),
+        ...(negativePrompt && { negativePrompt }),
         ...(seed !== undefined && { seed }),
       });
 
@@ -70,14 +69,15 @@ export const createVeo3VideoTool = tool({
         success: true,
         videoId: result.id,
         status: result.status,
+        videoUrl: result.videoUrl,
         prompt: result.prompt,
         duration: result.duration,
         resolution: result.resolution,
         createdAt: result.createdAt,
         message:
-          result.status === 'processing'
-            ? 'Видео создается, используйте checkVeo3VideoStatus для проверки статуса'
-            : 'Видео готово!',
+          result.status === 'completed'
+            ? `Video generated successfully! URL: ${result.videoUrl}`
+            : 'Video generation failed',
       };
     } catch (error) {
       console.error('🎬 VEO3 video creation error:', error);
@@ -89,47 +89,10 @@ export const createVeo3VideoTool = tool({
   },
 });
 
-export const checkVeo3VideoStatusTool = tool({
-  description: 'Проверяет статус создания видео VEO3',
-  inputSchema: z.object({
-    videoId: z.string().describe('ID видео для проверки статуса'),
-  }),
-  execute: async ({ videoId }) => {
-    try {
-      console.log('🎬 Checking VEO3 video status:', { videoId });
-
-      const result = await getVeo3VideoStatus(videoId);
-
-      return {
-        success: true,
-        videoId: result.id,
-        status: result.status,
-        prompt: result.prompt,
-        duration: result.duration,
-        resolution: result.resolution,
-        videoUrl: result.videoUrl,
-        thumbnailUrl: result.thumbnailUrl,
-        createdAt: result.createdAt,
-        completedAt: result.completedAt,
-        error: result.error,
-        isReady: result.status === 'completed',
-        isProcessing: result.status === 'processing',
-        isFailed: result.status === 'failed',
-      };
-    } catch (error) {
-      console.error('🎬 VEO3 video status error:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
-    }
-  },
-});
-
 export const generateVeo3IdeasTool = tool({
-  description: 'Генерирует идеи для видео VEO3 на основе промпта',
+  description: 'Generates video ideas for VEO3 based on a prompt',
   inputSchema: z.object({
-    prompt: z.string().describe('Базовый промпт для генерации идей видео'),
+    prompt: z.string().describe('Base prompt for generating video ideas'),
   }),
   execute: async ({ prompt }) => {
     try {
@@ -143,10 +106,11 @@ export const generateVeo3IdeasTool = tool({
         ideas,
         totalIdeas: ideas.length,
         suggestions: [
-          'Попробуйте разные стили: realistic, animated, cinematic, documentary',
-          'Экспериментируйте с длительностью: от 5 до 60 секунд',
-          'Используйте разные разрешения: 720p, 1080p, 4k',
-          'Попробуйте разные соотношения сторон: 16:9, 9:16, 1:1',
+          'Try different durations: 4s, 6s, or 8s',
+          'Experiment with aspect ratios: 16:9, 9:16, 1:1',
+          'Use different resolutions: 720p or 1080p',
+          'Enable audio generation for more immersive videos',
+          'Use negative prompts to avoid unwanted elements',
         ],
       };
     } catch (error) {

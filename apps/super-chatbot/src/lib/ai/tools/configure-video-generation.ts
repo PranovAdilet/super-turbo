@@ -1,7 +1,6 @@
 import { tool } from 'ai';
 import { z } from 'zod';
 import type { MediaOption } from '@/lib/types/media-settings';
-import { getVideoGenerationConfig } from '@/lib/config/media-settings-factory';
 import {
   checkBalanceBeforeArtifact,
   getOperationDisplayName,
@@ -91,32 +90,45 @@ export const configureVideoGeneration = (params?: CreateVideoDocumentParams) =>
         batchSize,
       });
 
-      // AICODE-NOTE: Use new factory to get configuration with OpenAPI models
-      console.log('🎬 Loading video configuration from OpenAPI factory...');
-      const config = await getVideoGenerationConfig();
+      // AICODE-NOTE: Define FAL VEO3 constants at the top of execute function
+      const FAL_DURATIONS = [
+        { id: '4s', label: '4s', value: '4s' },
+        { id: '6s', label: '6s', value: '6s' },
+        { id: '8s', label: '8s', value: '8s' },
+      ];
 
-      console.log('🎬 ✅ Loaded video config:', {
-        modelsCount: config.availableModels.length,
-        resolutionsCount: config.availableResolutions.length,
-        stylesCount: config.availableStyles.length,
-      });
+      const FAL_RESOLUTIONS = [
+        { id: '720p', label: '720p', value: '720p' },
+        { id: '1080p', label: '1080p', value: '1080p' },
+      ];
 
-      // If no prompt provided, return configuration panel
+      const FAL_ASPECT_RATIOS = [
+        { id: '16:9', label: '16:9', value: '16:9' },
+        { id: '9:16', label: '9:16', value: '9:16' },
+        { id: '1:1', label: '1:1', value: '1:1' },
+      ];
+
+      // If no prompt provided, return FAL VEO3 configuration panel
       if (!prompt) {
         console.log(
-          '🎬 No prompt provided, returning video configuration panel',
+          '🎬 No prompt provided, returning FAL VEO3 configuration panel',
         );
-        return config;
+        return {
+          availableDurations: FAL_DURATIONS,
+          availableResolutions: FAL_RESOLUTIONS,
+          availableAspectRatios: FAL_ASPECT_RATIOS,
+          model: 'fal-ai/veo3',
+          provider: 'fal-ai',
+          capabilities: [
+            'Text-to-video generation',
+            'Audio generation',
+            'Prompt enhancement',
+            'Negative prompts',
+          ],
+        };
       }
 
-      console.log('🎬 ✅ PROMPT PROVIDED, CREATING VIDEO DOCUMENT:', prompt);
-
-      if (!params?.createDocument) {
-        console.log(
-          '🎬 ❌ createDocument not available, returning basic config',
-        );
-        return config;
-      }
+      console.log('🎬 ✅ PROMPT PROVIDED, GENERATING WITH FAL VEO3:', prompt);
 
       // Check style for quality multipliers
       const multipliers: string[] = [];
@@ -124,44 +136,30 @@ export const configureVideoGeneration = (params?: CreateVideoDocumentParams) =>
       if (style?.includes('ultra-quality')) multipliers.push('ultra-quality');
 
       try {
-        // Find the selected options or use defaults from factory
-        const selectedResolution = resolution
-          ? config.availableResolutions.find((r) => r.label === resolution) ||
-            config.defaultSettings.resolution
-          : config.defaultSettings.resolution;
+        // Map old duration format to FAL duration
+        const foundDuration = duration
+          ? FAL_DURATIONS.find(
+              (d) =>
+                d.label === duration ||
+                d.id === duration ||
+                duration.includes(d.id),
+            )
+          : null;
+        const selectedDuration = (foundDuration || FAL_DURATIONS[2])!; // default to 8s, Always has value from array
 
-        let selectedStyle: MediaOption = config.defaultSettings.style;
-        if (style) {
-          const foundStyle = findVideoStyle(style, config.availableStyles);
-          if (foundStyle) {
-            selectedStyle = foundStyle;
-            console.log(
-              '🎬 ✅ STYLE MATCHED:',
-              style,
-              '->',
-              selectedStyle.label,
-            );
-          } else {
-            console.log(
-              '🎬 ⚠️ STYLE NOT FOUND:',
-              style,
-              'using default:',
-              selectedStyle.label,
-            );
-          }
-        }
+        // Map old resolution format to FAL resolution
+        const foundResolution = resolution
+          ? FAL_RESOLUTIONS.find(
+              (r) => r.label === resolution || resolution.includes(r.id),
+            )
+          : null;
+        const selectedResolution = (foundResolution || FAL_RESOLUTIONS[0])!; // default to 720p, Always has value from array
 
-        const selectedDuration = duration
-          ? config.availableDurations.find(
-              (d) => d.label === duration || d.id === duration,
-            ) || config.defaultSettings.duration
-          : config.defaultSettings.duration;
-
-        const selectedModel = model
-          ? config.availableModels.find(
-              (m) => m.name === model || (m as any).id === model,
-            ) || config.defaultSettings.model
-          : config.defaultSettings.model;
+        // Map old resolution or style to aspect ratio
+        const foundAspectRatio = resolution
+          ? FAL_ASPECT_RATIOS.find((a) => resolution.includes(a.id))
+          : null;
+        const selectedAspectRatio = (foundAspectRatio || FAL_ASPECT_RATIOS[0])!; // default to 16:9, Always has value from array
 
         // Используем новую систему анализа контекста
         let normalizedSourceUrl = sourceVideoUrl;
@@ -285,7 +283,7 @@ export const configureVideoGeneration = (params?: CreateVideoDocumentParams) =>
         }
 
         const balanceCheck = await checkBalanceBeforeArtifact(
-          params.session || null,
+          params?.session || null,
           'video-generation',
           operationType,
           multipliers,
@@ -297,81 +295,93 @@ export const configureVideoGeneration = (params?: CreateVideoDocumentParams) =>
           return {
             error:
               balanceCheck.userMessage ||
-              'Недостаточно средств для генерации видео',
+              'Insufficient funds for video generation',
             balanceError: true,
             requiredCredits: balanceCheck.cost,
           };
         }
 
-        // Create the video document with all parameters
-        const videoParams = {
-          prompt,
-          style: selectedStyle,
-          resolution: selectedResolution,
-          duration: selectedDuration.value || selectedDuration, // Извлекаем value для API
-          model: selectedModel,
-          seed: seed || undefined,
-          batchSize: batchSize || 1,
-          ...(normalizedSourceUrl
-            ? { sourceVideoUrl: normalizedSourceUrl }
-            : {}),
-        };
-
-        console.log('🎬 ✅ CREATING VIDEO DOCUMENT WITH PARAMS:', videoParams);
-        console.log('🔍 Final sourceVideoUrl used:', normalizedSourceUrl);
+        // AICODE-NOTE: Use FAL VEO3 provider directly instead of old SuperDuperAI artifact system
+        console.log('🎬 ✅ USING FAL VEO3 PROVIDER FOR VIDEO GENERATION');
 
         try {
-          // AICODE-NOTE: For now we pass params as JSON in title for backward compatibility
-          // TODO: Refactor to use proper parameter passing mechanism
-          const result = await params.createDocument.execute({
-            title: JSON.stringify(videoParams),
-            kind: 'video',
+          // Configure Fal.ai client
+          const { fal } = await import('@fal-ai/client');
+          const falKey = process.env.FAL_KEY;
+          if (!falKey) {
+            throw new Error('FAL_KEY environment variable is not configured');
+          }
+          fal.config({ credentials: falKey });
+
+          // Call Fal.ai Veo3 API
+          console.log('🚀 Calling Fal.ai Veo3 API...');
+          const result = await fal.subscribe('fal-ai/veo3', {
+            input: {
+              prompt,
+              aspect_ratio: selectedAspectRatio.value as
+                | '16:9'
+                | '9:16'
+                | '1:1',
+              duration: selectedDuration.value as '4s' | '6s' | '8s',
+              resolution: selectedResolution.value as '720p' | '1080p',
+              generate_audio: true,
+              enhance_prompt: true,
+              ...(seed && { seed }),
+            },
+            logs: true,
+            onQueueUpdate: (update) => {
+              console.log('📊 Queue update:', update);
+            },
           });
 
-          console.log('🎬 ✅ CREATE DOCUMENT RESULT:', result);
+          console.log('✅ Video generation result:', result);
+
+          // Extract video URL from response
+          const videoUrl = result.data?.video?.url;
+          if (!videoUrl) {
+            throw new Error('No video URL in response');
+          }
+
+          // Generate unique file ID
+          const fileId = `fal-video-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+
+          console.log('🎬 ✅ FAL VIDEO GENERATED:', {
+            fileId,
+            videoUrl,
+            duration: selectedDuration.value,
+            resolution: selectedResolution.value,
+          });
 
           return {
-            ...result,
-            message: `I'm creating ${operationType.replace('-', ' ')} with description: "${prompt}". Using model "${selectedModel.name}" with ${selectedResolution.label} resolution and ${selectedDuration.label} duration. Artifact created and generation started.`,
+            success: true,
+            fileId,
+            videoUrl,
+            data: {
+              id: fileId,
+              url: videoUrl,
+              prompt,
+              timestamp: Date.now(),
+              settings: {
+                duration: selectedDuration.value,
+                aspectRatio: selectedAspectRatio.value,
+                resolution: selectedResolution.value,
+                generateAudio: true,
+              },
+            },
+            creditsUsed: balanceCheck.cost,
+            provider: 'fal.ai',
+            model: 'veo3',
+            message: `Video generated successfully using FAL AI VEO3: "${prompt}". Duration: ${selectedDuration.label}, Resolution: ${selectedResolution.label}, Aspect Ratio: ${selectedAspectRatio.label}.`,
           };
-        } catch (error) {
-          console.error('🎬 ❌ CREATE DOCUMENT ERROR:', error);
+        } catch (error: any) {
+          console.error('🎬 ❌ FAL VIDEO GENERATION ERROR:', error);
           throw error;
         }
       } catch (error: any) {
-        console.error('🎬 ❌ ERROR CREATING VIDEO DOCUMENT:', error);
-
-        // Create error artifact for better user feedback
-        if (params?.createDocument) {
-          try {
-            const errorResult = await params.createDocument.execute({
-              title: JSON.stringify({
-                prompt,
-                status: 'error',
-                error: error.message || 'Failed to create video document',
-                timestamp: Date.now(),
-                message: 'Ошибка при создании видео',
-              }),
-              kind: 'video',
-            });
-
-            return {
-              ...errorResult,
-              error: `Ошибка создания видео: ${error.message}`,
-              message: `К сожалению, не удалось создать видео: "${prompt}". Ошибка: ${error.message}`,
-            };
-          } catch (artifactError) {
-            console.error(
-              '🎬 ❌ Failed to create error artifact:',
-              artifactError,
-            );
-          }
-        }
-
+        console.error('🎬 ❌ ERROR IN VIDEO GENERATION:', error);
         return {
-          error: `Ошибка создания видео: ${error.message}`,
-          message: `К сожалению, не удалось создать видео: "${prompt}". Ошибка: ${error.message}`,
-          fallbackConfig: config,
+          error: `Failed to generate video: ${error.message}`,
+          message: `Unfortunately, video generation failed: "${prompt}". Error: ${error.message}`,
         };
       }
     },

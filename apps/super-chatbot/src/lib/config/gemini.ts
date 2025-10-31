@@ -4,12 +4,12 @@
  */
 
 export const getGeminiConfig = () => {
-  // Используем существующий GOOGLE_AI_API_KEY из banana-veo3
-  const apiKey = process.env.GOOGLE_AI_API_KEY;
+  // Используем существующий VERTEX_AI_API_KEY из banana-veo3
+  const apiKey = process.env.VERTEX_AI_API_KEY;
 
   if (!apiKey) {
     throw new Error(
-      'GOOGLE_AI_API_KEY environment variable is required for Nano Banana (Gemini-2.5-Flash-Image)',
+      'VERTEX_AI_API_KEY environment variable is required for Nano Banana (Gemini-2.5-Flash-Image)',
     );
   }
 

@@ -28,589 +28,681 @@ import { MultimodalInput } from "./multimodal-input";
 
 // --- UNIVERSAL SAVE SCRIPT ARTIFACT TO CHAT ---
 async function saveScriptArtifactToChat({
-	chatId,
-	userPrompt,
-	docId,
-	setMessages,
-	initialChatModel,
-	visibilityType,
+  chatId,
+  userPrompt,
+  docId,
+  setMessages,
+  initialChatModel,
+  visibilityType,
 }: {
-	chatId: string;
-	userPrompt: string;
-	docId: string;
-	setMessages: (fn: (prev: UIMessage[]) => UIMessage[]) => void;
-	initialChatModel: string;
-	visibilityType: string;
+  chatId: string;
+  userPrompt: string;
+  docId: string;
+  setMessages: (fn: (prev: UIMessage[]) => UIMessage[]) => void;
+  initialChatModel: string;
+  visibilityType: string;
 }) {
-	const artifactAttachmentMessage = {
-		role: "assistant",
-		content: " ",
-		parts: [],
-		experimental_attachments: [
-			{
-				url: `${
-					typeof window !== "undefined"
-						? window.location.origin
-						: "http://localhost:3000"
-				}/api/document?id=${docId}`,
-				name: userPrompt || "Scenario.md",
-				contentType: "text/markdown",
-				documentId: docId,
-			},
-		],
-		createdAt: new Date(),
-		id: generateUUID(),
-	};
-	setMessages((prev) => [...prev, artifactAttachmentMessage as UIMessage]);
-	await fetch("/api/chat", {
-		method: "POST",
-		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify({
-			id: chatId,
-			message: artifactAttachmentMessage,
-			selectedChatModel: initialChatModel,
-			selectedVisibilityType: visibilityType,
-		}),
-	});
+  const artifactAttachmentMessage = {
+    role: "assistant",
+    content: " ",
+    parts: [],
+    experimental_attachments: [
+      {
+        url: `${
+          typeof window !== "undefined"
+            ? window.location.origin
+            : "http://localhost:3000"
+        }/api/document?id=${docId}`,
+        name: userPrompt || "Scenario.md",
+        contentType: "text/markdown",
+        documentId: docId,
+      },
+    ],
+    createdAt: new Date(),
+    id: generateUUID(),
+  };
+  setMessages((prev) => [...prev, artifactAttachmentMessage as UIMessage]);
+  await fetch("/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      id: chatId,
+      message: artifactAttachmentMessage,
+      selectedChatModel: initialChatModel,
+      selectedVisibilityType: visibilityType,
+    }),
+  });
 }
 // --- END UNIVERSAL SAVE SCRIPT ARTIFACT TO CHAT ---
 
 function ChatContent({
-	id,
-	initialMessages,
-	initialChatModel,
-	initialVisibilityType,
-	isReadonly,
-	session,
-	autoResume,
-	onDataStream,
-	onError,
-	isGeminiChat = false,
+  id,
+  initialMessages,
+  initialChatModel,
+  initialVisibilityType,
+  isReadonly,
+  session,
+  autoResume,
+  onDataStream,
+  onError,
+  isGeminiChat = false,
 }: {
-	id: string;
-	initialMessages: Array<UIMessage>;
-	initialChatModel: string;
-	initialVisibilityType: VisibilityType;
-	isReadonly: boolean;
-	session: Session;
-	autoResume: boolean;
-	onDataStream?: (dataStream: any[]) => void;
-	onError?: (error: Error) => void;
-	isGeminiChat?: boolean;
+  id: string;
+  initialMessages: Array<UIMessage>;
+  initialChatModel: string;
+  initialVisibilityType: VisibilityType;
+  isReadonly: boolean;
+  session: Session;
+  autoResume: boolean;
+  onDataStream?: (dataStream: any[]) => void;
+  onError?: (error: Error) => void;
+  isGeminiChat?: boolean;
 }) {
-	const { mutate } = useSWRConfig();
+  const { mutate } = useSWRConfig();
 
-	const { visibilityType } = useChatVisibility({
-		chatId: id,
-		initialVisibilityType,
-	});
+  const { visibilityType } = useChatVisibility({
+    chatId: id,
+    initialVisibilityType,
+  });
 
-	// Состояние для блокировки кнопки отправки
-	const [isSubmitting, setIsSubmitting] = useState(false);
-	const isSubmittingRef = useRef(false);
+  // Состояние для блокировки кнопки отправки
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const isSubmittingRef = useRef(false);
 
-	const { updateMessages, artifact } = useArtifactContext();
+  const { updateMessages, artifact } = useArtifactContext();
 
-	// AI SDK v5: Manual input management (useChat doesn't provide input/setInput in v5)
-	const [input, setInput] = useState("");
+  // AI SDK v5: Manual input management (useChat doesn't provide input/setInput in v5)
+  const [input, setInput] = useState("");
 
-	const chatHelpers = useChat({
-		id,
-		messages: initialMessages as any, // AI SDK v5: messages instead of initialMessages
-		// AI SDK v5: api parameter might be different
-		...(isGeminiChat ? { api: "/api/gemini-chat" } : {}),
-		// AI SDK v5: body parameter might be different
-		body: {
-			id,
-			selectedChatModel: initialChatModel,
-			selectedVisibilityType: visibilityType,
-		},
-		// AI SDK v5: Use fetch function to intercept and modify the request
-		fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
-			console.log("🔍 Custom fetch called");
-			console.log("🔍 Request URL:", input);
+  const chatHelpers = useChat({
+    id,
+    messages: initialMessages as any, // AI SDK v5: messages instead of initialMessages
+    // AI SDK v5: api parameter might be different
+    ...(isGeminiChat ? { api: "/api/gemini-chat" } : {}),
+    // AI SDK v5: body parameter might be different
+    body: {
+      id,
+      selectedChatModel: initialChatModel,
+      selectedVisibilityType: visibilityType,
+    },
+    // AI SDK v5: Use fetch function to intercept and modify the request
+    fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
+      console.log("🔍 Custom fetch called");
+      console.log("🔍 Request URL:", input);
 
-			// Parse the request body to get messages
-			if (init?.body) {
-				try {
-					const body = JSON.parse(init.body as string);
-					console.log("🔍 Original messages count:", body.messages?.length || 0);
+      // Parse the request body to get messages
+      if (init?.body) {
+        try {
+          const body = JSON.parse(init.body as string);
+          console.log(
+            "🔍 CLIENT - Original messages count:",
+            body.messages?.length || 0
+          );
+          console.log(
+            "🔍 CLIENT - Original message roles:",
+            body.messages?.map((m: any) => m.role) || []
+          );
+          console.log(
+            "🔍 CLIENT - Body has experimental_attachments:",
+            !!body.experimental_attachments
+          );
+          console.log(
+            "🔍 CLIENT - experimental_attachments count:",
+            body.experimental_attachments?.length || 0
+          );
+          console.log("🔍 CLIENT - Body has files (AI SDK v5):", !!body.files);
+          console.log("🔍 CLIENT - files count:", body.files?.length || 0);
 
-					// CRITICAL FIX: Only send the last (new) message
-					// After page reload, useChat has all messages from DB
-					// We only need to send the new user message
-					if (body.messages && body.messages.length > 0) {
-						const lastMessage = body.messages[body.messages.length - 1];
-						console.log("🔍 Sending only last message:", {
-							id: lastMessage.id,
-							role: lastMessage.role,
-						});
+          // CRITICAL FIX: Only send the last (new) message
+          // After page reload, useChat has all messages from DB
+          // We only need to send the new user message
+          if (body.messages && body.messages.length > 0) {
+            const lastMessage = body.messages[body.messages.length - 1];
+            console.log("🔍 CLIENT - Sending only last message:", {
+              id: lastMessage.id,
+              role: lastMessage.role,
+              content: lastMessage.content?.substring(0, 30),
+              hasAttachments: !!(lastMessage as any).experimental_attachments,
+              hasFiles: !!(lastMessage as any).files,
+              filesCount: (lastMessage as any).files?.length || 0,
+              parts: lastMessage.parts?.map((p: any) => ({
+                type: p.type,
+                hasText: !!p.text,
+                hasUrl: !!p.url,
+              })),
+            });
 
-						body.messages = [lastMessage];
-						init.body = JSON.stringify(body);
-					}
-				} catch (e) {
-					console.error("Failed to parse request body:", e);
-				}
-			}
+            body.messages = [lastMessage];
 
-			return fetch(input, init);
-		},
-		onFinish: (result: any) => {
-			console.log("🔍 Client onFinish - Chat ID:", id);
+            // CRITICAL: AI SDK v5 stores files on the message itself, not as separate body.files
+            // Copy files from the message to the body level if they exist
+            if (!body.files && (lastMessage as any).files) {
+              body.files = (lastMessage as any).files;
+              console.log(
+                "🔍 CLIENT - Copied files from message to body:",
+                body.files?.length || 0
+              );
+            }
 
-			// IMPORTANT: result.messages contains the complete updated message list
-			let allMessages = result?.messages || [];
-			console.log("🔍 Messages received:", allMessages.length);
+            init.body = JSON.stringify(body);
 
-			// CRITICAL FIX: Add attachments for script documents from tool results
-			// This ensures scripts appear immediately without page reload
-			if (allMessages.length > 0) {
-				const lastMessage = allMessages[allMessages.length - 1];
-				if (lastMessage && lastMessage.role === "assistant" && lastMessage.parts) {
-					console.log("🔧 Checking for script tools in last message");
+            console.log(
+              "🔍 CLIENT - Modified messages count:",
+              body.messages.length,
+              "files:",
+              body.files?.length || 0
+            );
+          }
+        } catch (e) {
+          console.error("Failed to parse request body:", e);
+        }
+      }
 
-					const scriptDocuments: Array<{
-						id: string;
-						title: string;
-						kind: string;
-					}> = [];
+      return fetch(input, init);
+    },
+    onFinish: (result: any) => {
+      console.log("🔍 Client onFinish - Chat ID:", id);
 
-					// Check each part for script-generating tools
-					for (const part of lastMessage.parts) {
-						if (
-							part.type &&
-							typeof part.type === "string" &&
-							part.type.startsWith("tool-") &&
-							((part as any).state === "output-available" ||
-								(part as any).state === "result") &&
-							(part as any).output
-						) {
-							const toolName = part.type.replace("tool-", "");
-							const toolResult = (part as any).output;
+      // IMPORTANT: result.messages contains the complete updated message list
+      let allMessages = result?.messages || [];
+      console.log("🔍 Messages received:", allMessages.length);
 
-							// Check for script documents
-							if (
-								(toolName === "configureScriptGeneration" ||
-									(toolName === "createDocument" &&
-										toolResult.kind === "script")) &&
-								toolResult.id &&
-								toolResult.kind === "script"
-							) {
-								scriptDocuments.push({
-									id: toolResult.id,
-									title: toolResult.title || "Document",
-									kind: toolResult.kind,
-								});
-								console.log("🔧 ✅ Found script document:", toolResult.id);
-							}
-						}
-					}
+      // CRITICAL FIX: Add attachments for script documents from tool results
+      // This ensures scripts appear immediately without page reload
+      if (allMessages.length > 0) {
+        const lastMessage = allMessages[allMessages.length - 1];
+        if (
+          lastMessage &&
+          lastMessage.role === "assistant" &&
+          lastMessage.parts
+        ) {
+          console.log("🔧 Checking for script tools in last message");
 
-					// Add attachments if we found script documents
-					if (scriptDocuments.length > 0) {
-						const attachments = lastMessage.experimental_attachments || [];
-						let hasNewAttachments = false;
+          const scriptDocuments: Array<{
+            id: string;
+            title: string;
+            kind: string;
+          }> = [];
 
-						for (const doc of scriptDocuments) {
-							// Check if attachment already exists
-							const exists = attachments.some(
-								(att: any) => att.documentId === doc.id,
-							);
-							if (!exists) {
-								attachments.push({
-									name:
-										doc.title.length > 200
-											? `${doc.title.substring(0, 200)}...`
-											: doc.title,
-									url: `${window.location.origin}/api/document?id=${doc.id}`,
-									contentType: "text/markdown" as const,
-									documentId: doc.id,
-								});
-								hasNewAttachments = true;
-								console.log("🔧 ✅ Added script attachment on client:", doc.id);
-							}
-						}
+          // Check each part for script-generating tools
+          for (const part of lastMessage.parts) {
+            if (
+              part.type &&
+              typeof part.type === "string" &&
+              part.type.startsWith("tool-") &&
+              ((part as any).state === "output-available" ||
+                (part as any).state === "result") &&
+              (part as any).output
+            ) {
+              const toolName = part.type.replace("tool-", "");
+              const toolResult = (part as any).output;
 
-						if (hasNewAttachments) {
-							// Update the last message with new attachments
-							allMessages = [
-								...allMessages.slice(0, -1),
-								{
-									...lastMessage,
-									experimental_attachments: attachments,
-								},
-							];
-							console.log(
-								"🔧 ✅ Updated messages with",
-								attachments.length,
-								"attachments",
-							);
-						}
-					}
-				}
+              // Check for script documents
+              if (
+                (toolName === "configureScriptGeneration" ||
+                  (toolName === "createDocument" &&
+                    toolResult.kind === "script")) &&
+                toolResult.id &&
+                toolResult.kind === "script"
+              ) {
+                scriptDocuments.push({
+                  id: toolResult.id,
+                  title: toolResult.title || "Document",
+                  kind: toolResult.kind,
+                });
+                console.log("🔧 ✅ Found script document:", toolResult.id);
+              }
+            }
+          }
 
-				console.log(
-					"🔍 Updating messages state with",
-					allMessages.length,
-					"messages",
-				);
+          // Add attachments if we found script documents
+          if (scriptDocuments.length > 0) {
+            const attachments = lastMessage.experimental_attachments || [];
+            let hasNewAttachments = false;
 
-				// CRITICAL FIX: Explicitly update React state with new messages
-				// AI SDK v5 requires explicit state update in onFinish callback
-				setMessages(allMessages);
-				console.log(
-					"✅ setMessages (React state) called with",
-					allMessages.length,
-					"messages",
-				);
+            for (const doc of scriptDocuments) {
+              // Check if attachment already exists
+              const exists = attachments.some(
+                (att: any) => att.documentId === doc.id
+              );
+              if (!exists) {
+                attachments.push({
+                  name:
+                    doc.title.length > 200
+                      ? `${doc.title.substring(0, 200)}...`
+                      : doc.title,
+                  url: `${window.location.origin}/api/document?id=${doc.id}`,
+                  contentType: "text/markdown" as const,
+                  documentId: doc.id,
+                });
+                hasNewAttachments = true;
+                console.log("🔧 ✅ Added script attachment on client:", doc.id);
+              }
+            }
 
-				// Update artifact context for artifact detection
-				if (updateMessages) {
-					updateMessages(allMessages);
-					console.log("✅ updateMessages (artifact context) called");
-				}
-			}
+            if (hasNewAttachments) {
+              // Update the last message with new attachments
+              allMessages = [
+                ...allMessages.slice(0, -1),
+                {
+                  ...lastMessage,
+                  experimental_attachments: attachments,
+                },
+              ];
+              console.log(
+                "🔧 ✅ Updated messages with",
+                attachments.length,
+                "attachments"
+              );
+            }
+          }
+        }
 
-			// Сбрасываем состояние блокировки
-			isSubmittingRef.current = false;
-			setIsSubmitting(false);
+        console.log(
+          "🔍 Updating messages state with",
+          allMessages.length,
+          "messages"
+        );
 
-			// Обновляем URL после успешного завершения чата
-			if (id && typeof window !== "undefined") {
-				const newUrl = `/chat/${id}`;
-				if (window.location.pathname !== newUrl) {
-					window.history.pushState(null, "", newUrl);
-				}
-			}
-			mutate(unstable_serialize(getChatHistoryPaginationKey));
-		},
-		onError: (error: Error) => {
-			// При ошибке не обновляем URL, чтобы избежать 404
-			console.error("Chat error:", error);
+        // CRITICAL FIX: Remove image/video attachments to prevent token overflow
+        // Keep markdown attachments (scripts) as they don't cause token overflow
+        // Images/videos are displayed via SSE hooks, not via attachments in messages
+        const messagesWithoutImageAttachments = allMessages.map((msg: any) => {
+          if (!msg.experimental_attachments) return msg;
 
-			// Сбрасываем состояние блокировки
-			isSubmittingRef.current = false;
-			setIsSubmitting(false);
+          // Keep only markdown attachments (scripts), remove image/video attachments
+          const filteredAttachments = msg.experimental_attachments.filter(
+            (att: any) => att.contentType === "text/markdown"
+          );
 
-			// Передаем ошибку в родительский компонент
-			if (onError) {
-				onError(error);
-			}
+          return {
+            ...msg,
+            experimental_attachments:
+              filteredAttachments.length > 0 ? filteredAttachments : undefined,
+          };
+        });
+        console.log(
+          "🔍 Filtered image/video attachments from",
+          allMessages.length,
+          "messages to prevent client-side token overflow"
+        );
 
-			toast({
-				type: "error",
-				description: error.message,
-			});
-		},
-	} as any);
+        // CRITICAL FIX: Explicitly update React state with new messages
+        // AI SDK v5 requires explicit state update in onFinish callback
+        setMessages(messagesWithoutImageAttachments);
+        console.log(
+          "✅ setMessages (React state) called with",
+          messagesWithoutImageAttachments.length,
+          "messages"
+        );
 
-	// Extract properties from chatHelpers
-	const { messages, setMessages, status, stop } = chatHelpers;
-	const sendMessage = (chatHelpers as any).sendMessage;
-	const regenerate = (chatHelpers as any).regenerate;
+        // Update artifact context for artifact detection
+        if (updateMessages) {
+          updateMessages(messagesWithoutImageAttachments);
+          console.log("✅ updateMessages (artifact context) called");
+        }
+      }
 
-	// AI SDK v5: reload is now regenerate
-	const reload = useCallback(() => {
-		if (regenerate) {
-			return regenerate();
-		}
-	}, [regenerate]);
+      // Сбрасываем состояние блокировки
+      isSubmittingRef.current = false;
+      setIsSubmitting(false);
 
-	const searchParams = useSearchParams();
-	const query = searchParams.get("query");
+      // Обновляем URL после успешного завершения чата
+      if (id && typeof window !== "undefined") {
+        const newUrl = `/chat/${id}`;
+        if (window.location.pathname !== newUrl) {
+          window.history.pushState(null, "", newUrl);
+        }
+      }
+      mutate(unstable_serialize(getChatHistoryPaginationKey));
+    },
+    onError: (error: Error) => {
+      // При ошибке не обновляем URL, чтобы избежать 404
+      console.error("Chat error:", error);
 
-	const [hasAppendedQuery, setHasAppendedQuery] = useState(false);
-	const [scriptStatus, setScriptStatus] = useState<"idle" | "submitted">(
-		"idle",
-	);
+      // Сбрасываем состояние блокировки
+      isSubmittingRef.current = false;
+      setIsSubmitting(false);
 
-	// AI SDK v5: Append function using sendMessage
-	const handleAppend = useCallback(
-		async (message: any, options?: any): Promise<string | null | undefined> => {
-			// НЕ обновляем URL здесь - ждем команду от сервера
-			if (message.content) {
-				const result = await sendMessage({
-					text: message.content,
-				});
-				return result;
-			}
-			return null;
-		},
-		[sendMessage],
-	);
+      // Передаем ошибку в родительский компонент
+      if (onError) {
+        onError(error);
+      }
 
-	useEffect(() => {
-		if (query && !hasAppendedQuery) {
-			handleAppend({
-				role: "user",
-				content: query,
-			});
+      toast({
+        type: "error",
+        description: error.message,
+      });
+    },
+  } as any);
 
-			setHasAppendedQuery(true);
-			// НЕ обновляем URL здесь - ждем команду от сервера
-		}
-	}, [query, handleAppend, hasAppendedQuery, id]);
+  // Extract properties from chatHelpers
+  const { messages, setMessages, status, stop } = chatHelpers;
+  const sendMessage = (chatHelpers as any).sendMessage;
+  const regenerate = (chatHelpers as any).regenerate;
 
-	const { data: votes } = useSWR<Array<Vote>>(
-		messages.length >= 2 ? `/api/vote?chatId=${id}` : null,
-		fetcher,
-	);
+  // AI SDK v5: reload is now regenerate
+  const reload = useCallback(() => {
+    if (regenerate) {
+      return regenerate();
+    }
+  }, [regenerate]);
 
-	const [attachments, setAttachments] = useState<Array<any>>([]);
+  const searchParams = useSearchParams();
+  const query = searchParams.get("query");
 
-	const isArtifactVisible = artifact.isVisible;
+  const [hasAppendedQuery, setHasAppendedQuery] = useState(false);
+  const [scriptStatus, setScriptStatus] = useState<"idle" | "submitted">(
+    "idle"
+  );
 
-	// AI SDK v5: No more data stream - tool invocations are in message.parts
-	// This hook is kept for compatibility but data is always undefined in v5
-	useEffect(() => {
-		// onDataStream callback removed - not applicable in v5
-		// Tool results are now in message.parts, not in separate data stream
-	}, [onDataStream]);
+  // AI SDK v5: Append function using sendMessage
+  const handleAppend = useCallback(
+    async (message: any, options?: any): Promise<string | null | undefined> => {
+      // НЕ обновляем URL здесь - ждем команду от сервера
+      if (message.content) {
+        const result = await sendMessage({
+          text: message.content,
+        });
+        return result;
+      }
+      return null;
+    },
+    [sendMessage]
+  );
 
-	useAutoResume({
-		autoResume,
-		initialMessages,
-		data: undefined, // AI SDK v5: No data stream
-		setMessages,
-	});
+  useEffect(() => {
+    if (query && !hasAppendedQuery) {
+      handleAppend({
+        role: "user",
+        content: query,
+      });
 
-	// Set active chat for cleanup management
-	useEffect(() => {
-		setActiveChat(id);
-	}, [id]);
+      setHasAppendedQuery(true);
+      // НЕ обновляем URL здесь - ждем команду от сервера
+    }
+  }, [query, handleAppend, hasAppendedQuery, id]);
 
-	// Обновляем сообщения в контексте артефактов для детекции
-	useEffect(() => {
-		if (!updateMessages || !messages) {
-			return;
-		}
+  const { data: votes } = useSWR<Array<Vote>>(
+    messages.length >= 2 ? `/api/vote?chatId=${id}` : null,
+    fetcher
+  );
 
-		console.log("🔄 Updating messages in artifact context:", {
-			chatId: id,
-			messagesCount: messages.length,
-			lastMessage: messages[messages.length - 1]
-				? {
-						id: messages[messages.length - 1]?.id,
-						role: messages[messages.length - 1]?.role,
-						partsCount: messages[messages.length - 1]?.parts?.length || 0,
-						hasContent: !!(messages[messages.length - 1] as any)?.content,
-					}
-				: null,
-		});
+  const [attachments, setAttachments] = useState<Array<any>>([]);
 
-		// Add a small delay to ensure the messages are fully processed
-		const timeoutId = setTimeout(() => {
-			console.log("🔄 Calling updateMessages after timeout");
-			updateMessages(messages);
-		}, 100);
+  const isArtifactVisible = artifact.isVisible;
 
-		return () => clearTimeout(timeoutId);
-	}, [messages, updateMessages, id]);
+  // AI SDK v5: No more data stream - tool invocations are in message.parts
+  // This hook is kept for compatibility but data is always undefined in v5
+  useEffect(() => {
+    // onDataStream callback removed - not applicable in v5
+    // Tool results are now in message.parts, not in separate data stream
+  }, [onDataStream]);
 
-	// Global SSE connections for media generation
-	const chatImageSSE = useChatImageSSE({
-		chatId: id,
-		messages,
-		setMessages,
-		enabled: !isReadonly, // Only enable for non-readonly chats
-	});
+  useAutoResume({
+    autoResume,
+    initialMessages,
+    data: undefined, // AI SDK v5: No data stream
+    setMessages,
+  });
 
-	const chatVideoSSE = useChatVideoSSE({
-		chatId: id,
-		messages,
-		setMessages,
-		enabled: !isReadonly, // Only enable for non-readonly chats
-	});
+  // Set active chat for cleanup management
+  useEffect(() => {
+    setActiveChat(id);
+  }, [id]);
 
-	// Register WebSocket instance for debugging and expose chat context for script artifacts
-	useEffect(() => {
-		if (typeof window !== "undefined") {
-			const globalWindow = window as any;
+  // Обновляем сообщения в контексте артефактов для детекции
+  useEffect(() => {
+    if (!updateMessages || !messages) {
+      return;
+    }
 
-			// Expose chat instance for script artifacts to access setMessages
-			globalWindow.chatInstance = {
-				setMessages,
-				chatId: id,
-				messages,
-			};
+    console.log("🔄 Updating messages in artifact context:", {
+      chatId: id,
+      messagesCount: messages.length,
+      lastMessage: messages[messages.length - 1]
+        ? {
+            id: messages[messages.length - 1]?.id,
+            role: messages[messages.length - 1]?.role,
+            partsCount: messages[messages.length - 1]?.parts?.length || 0,
+            hasContent: !!(messages[messages.length - 1] as any)?.content,
+          }
+        : null,
+    });
 
-			if (globalWindow.setChatWebSocketInstance) {
-				// Create a persistent storage object that maintains lastImageUrl
-				if (!globalWindow.chatWebSocketInstance) {
-					globalWindow.chatWebSocketInstance = {};
-				}
+    // Add a small delay to ensure the messages are fully processed
+    const timeoutId = setTimeout(() => {
+      console.log("🔄 Calling updateMessages after timeout");
+      updateMessages(messages);
+    }, 100);
 
-				// Update with current SSE data while preserving lastImageUrl
-				Object.assign(globalWindow.chatWebSocketInstance, {
-					...chatImageSSE,
-					...chatVideoSSE,
-					messages,
-					lastImageUrl: globalWindow.chatWebSocketInstance.lastImageUrl, // Preserve existing URL
-					lastVideoUrl: globalWindow.chatWebSocketInstance.lastVideoUrl, // Preserve existing video URL
-				});
+    return () => clearTimeout(timeoutId);
+  }, [messages, updateMessages, id]);
 
-				// Debugging instance stored silently
-			}
-		}
-	}, [chatImageSSE, chatVideoSSE, messages, setMessages, id]);
+  // Global SSE connections for media generation
+  const chatImageSSE = useChatImageSSE({
+    chatId: id,
+    messages,
+    setMessages,
+    enabled: !isReadonly, // Only enable for non-readonly chats
+  });
 
-	// AI SDK v5: Manual submit handler using sendMessage
-	const handleFormSubmit = useCallback(
-		(
-			event?: { preventDefault?: () => void } | undefined,
-			chatRequestOptions?: any,
-		) => {
-			if (event?.preventDefault) {
-				event.preventDefault();
-			}
+  const chatVideoSSE = useChatVideoSSE({
+    chatId: id,
+    messages,
+    setMessages,
+    enabled: !isReadonly, // Only enable for non-readonly chats
+  });
 
-			// Проверяем и устанавливаем блокировку
-			if (
-				isSubmittingRef.current ||
-				status !== "ready" ||
-				isSubmitting ||
-				!input.trim()
-			) {
-				console.log(
-					"🔍 handleFormSubmit blocked - already submitting or empty input",
-				);
-				return;
-			}
+  // Register WebSocket instance for debugging and expose chat context for script artifacts
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const globalWindow = window as any;
 
-			// Устанавливаем блокировку
-			isSubmittingRef.current = true;
-			setIsSubmitting(true);
+      // Expose chat instance for script artifacts to access setMessages
+      globalWindow.chatInstance = {
+        setMessages,
+        chatId: id,
+        messages,
+      };
 
-			console.log("🔍 handleFormSubmit called - НЕ обновляем URL");
-			console.log("🔍 Chat ID:", id);
-			console.log("🔍 Input:", input);
-			console.log("🔍 Chat request options:", chatRequestOptions);
+      if (globalWindow.setChatWebSocketInstance) {
+        // Create a persistent storage object that maintains lastImageUrl
+        if (!globalWindow.chatWebSocketInstance) {
+          globalWindow.chatWebSocketInstance = {};
+        }
 
-			// НЕ обновляем URL сразу - ждем успешного создания чата
-			// URL будет обновлен в onFinish callback
+        // Update with current SSE data while preserving lastImageUrl
+        Object.assign(globalWindow.chatWebSocketInstance, {
+          ...chatImageSSE,
+          ...chatVideoSSE,
+          messages,
+          lastImageUrl: globalWindow.chatWebSocketInstance.lastImageUrl, // Preserve existing URL
+          lastVideoUrl: globalWindow.chatWebSocketInstance.lastVideoUrl, // Preserve existing video URL
+        });
 
-			// AI SDK v5: Use sendMessage to send the message
-			sendMessage({
-				text: input,
-				// TODO: Add attachments support
-			});
+        // Debugging instance stored silently
+      }
+    }
+  }, [chatImageSSE, chatVideoSSE, messages, setMessages, id]);
 
-			// Clear input and attachments after sending
-			setInput("");
-			setAttachments([]);
-		},
-		[input, attachments, sendMessage, id, status, isSubmitting],
-	);
+  // AI SDK v5: Manual submit handler using sendMessage
+  const handleFormSubmit = useCallback(
+    (
+      event?: { preventDefault?: () => void } | undefined,
+      chatRequestOptions?: any
+    ) => {
+      if (event?.preventDefault) {
+        event.preventDefault();
+      }
 
-	return (
-		<>
-			<div className="flex flex-col min-w-0 h-dvh bg-background">
-				<ChatHeader
-					chatId={id}
-					selectedModelId={initialChatModel}
-					selectedVisibilityType={initialVisibilityType}
-					isReadonly={isReadonly}
-					session={session}
-				/>
+      // Проверяем и устанавливаем блокировку
+      if (
+        isSubmittingRef.current ||
+        status !== "ready" ||
+        isSubmitting ||
+        !input.trim()
+      ) {
+        console.log(
+          "🔍 handleFormSubmit blocked - already submitting or empty input"
+        );
+        return;
+      }
 
-				<Messages
-					chatId={id}
-					status={scriptStatus === "submitted" ? "submitted" : status}
-					votes={votes}
-					messages={messages}
-					setMessages={setMessages}
-					reload={reload}
-					isReadonly={isReadonly}
-					isArtifactVisible={isArtifactVisible}
-					selectedChatModel={initialChatModel}
-					selectedVisibilityType={visibilityType}
-					append={handleAppend}
-				/>
+      // Устанавливаем блокировку
+      isSubmittingRef.current = true;
+      setIsSubmitting(true);
 
-				<form className="flex mx-auto px-4 bg-background pb-4 md:pb-6 gap-2 w-full md:max-w-3xl">
-					{!isReadonly && (
-						<MultimodalInput
-							chatId={id}
-							input={input}
-							setInput={setInput}
-							handleSubmit={handleFormSubmit}
-							status={status}
-							stop={stop}
-							isSubmitting={isSubmitting}
-							isSubmittingRef={isSubmittingRef}
-							attachments={attachments}
-							setAttachments={setAttachments}
-							messages={messages}
-							setMessages={setMessages}
-							append={handleAppend}
-							selectedVisibilityType={visibilityType}
-						/>
-					)}
-				</form>
+      console.log("🔍 handleFormSubmit called - НЕ обновляем URL");
+      console.log("🔍 Chat ID:", id);
+      console.log("🔍 Input:", input);
+      console.log("🔍 Attachments:", attachments);
+      console.log("🔍 Chat request options:", chatRequestOptions);
 
-				{/* Менеджер артефактов для отладки и восстановления */}
-				{process.env.NODE_ENV === "development" && (
-					<div className="fixed bottom-4 right-4 z-50 max-w-sm">
-						<ArtifactManager chatId={id} />
-						<div className="mt-2">
-							<ArtifactDebug chatId={id} />
-						</div>
-					</div>
-				)}
-			</div>
+      // НЕ обновляем URL сразу - ждем успешного создания чата
+      // URL будет обновлен в onFinish callback
 
-			<UIArtifact
-				chatId={id}
-				input={input}
-				setInput={setInput}
-				handleSubmit={handleFormSubmit}
-				status={status}
-				stop={stop}
-				reload={reload}
-				attachments={attachments}
-				setAttachments={setAttachments}
-				append={handleAppend}
-				messages={messages}
-				setMessages={setMessages}
-				votes={votes}
-				isReadonly={isReadonly}
-				selectedVisibilityType={visibilityType}
-				selectedChatModel={initialChatModel}
-			/>
-		</>
-	);
+      // AI SDK v5: Use sendMessage to send the message
+      // Convert attachments to FileUIPart format for AI SDK v5
+      const files = attachments.map((att) => ({
+        type: "file" as const,
+        filename: att.name || "attachment",
+        mediaType: att.contentType || "image/png",
+        url: att.url,
+      }));
+
+      const messagePayload: any = {
+        text: input,
+        ...(files.length > 0 && { files }),
+        ...(chatRequestOptions || {}),
+      };
+
+      console.log("🔍 Sending message with payload:", {
+        text: input,
+        filesCount: files.length,
+        files,
+      });
+
+      sendMessage(messagePayload);
+
+      // Clear input and attachments after sending
+      setInput("");
+      setAttachments([]);
+    },
+    [input, attachments, sendMessage, id, status, isSubmitting]
+  );
+
+  return (
+    <>
+      <div className="flex flex-col min-w-0 h-dvh bg-background">
+        <ChatHeader
+          chatId={id}
+          selectedModelId={initialChatModel}
+          selectedVisibilityType={initialVisibilityType}
+          isReadonly={isReadonly}
+          session={session}
+        />
+
+        <Messages
+          chatId={id}
+          status={scriptStatus === "submitted" ? "submitted" : status}
+          votes={votes}
+          messages={messages}
+          setMessages={setMessages}
+          reload={reload}
+          isReadonly={isReadonly}
+          isArtifactVisible={isArtifactVisible}
+          selectedChatModel={initialChatModel}
+          selectedVisibilityType={visibilityType}
+          append={handleAppend}
+        />
+
+        <form className="flex mx-auto px-4 bg-background pb-4 md:pb-6 gap-2 w-full md:max-w-3xl">
+          {!isReadonly && (
+            <MultimodalInput
+              chatId={id}
+              input={input}
+              setInput={setInput}
+              handleSubmit={handleFormSubmit}
+              status={status}
+              stop={stop}
+              isSubmitting={isSubmitting}
+              isSubmittingRef={isSubmittingRef}
+              attachments={attachments}
+              setAttachments={setAttachments}
+              messages={messages}
+              setMessages={setMessages}
+              append={handleAppend}
+              selectedVisibilityType={visibilityType}
+            />
+          )}
+        </form>
+
+        {/* Менеджер артефактов для отладки и восстановления */}
+        {process.env.NODE_ENV === "development" && (
+          <div className="fixed bottom-4 right-4 z-50 max-w-sm">
+            <ArtifactManager chatId={id} />
+            <div className="mt-2">
+              <ArtifactDebug chatId={id} />
+            </div>
+          </div>
+        )}
+      </div>
+
+      <UIArtifact
+        chatId={id}
+        input={input}
+        setInput={setInput}
+        handleSubmit={handleFormSubmit}
+        status={status}
+        stop={stop}
+        reload={reload}
+        attachments={attachments}
+        setAttachments={setAttachments}
+        append={handleAppend}
+        messages={messages}
+        setMessages={setMessages}
+        votes={votes}
+        isReadonly={isReadonly}
+        selectedVisibilityType={visibilityType}
+        selectedChatModel={initialChatModel}
+      />
+    </>
+  );
 }
 
 export function Chat(props: {
-	id: string;
-	initialMessages: Array<UIMessage>;
-	initialChatModel: string;
-	initialVisibilityType: VisibilityType;
-	isReadonly: boolean;
-	session: Session;
-	autoResume: boolean;
-	onDataStream?: (dataStream: any[]) => void;
-	isGeminiChat?: boolean;
+  id: string;
+  initialMessages: Array<UIMessage>;
+  initialChatModel: string;
+  initialVisibilityType: VisibilityType;
+  isReadonly: boolean;
+  session: Session;
+  autoResume: boolean;
+  onDataStream?: (dataStream: any[]) => void;
+  isGeminiChat?: boolean;
 }) {
-	return (
-		<Suspense
-			fallback={
-				<div className="flex flex-col min-w-0 h-dvh bg-background">
-					<div className="flex items-center justify-center h-dvh">
-						<div className="flex flex-col items-center gap-4">
-							<div className="animate-spin text-zinc-500 size-12">
-								<LoaderIcon size={48} />
-							</div>
-							<p className="text-lg text-zinc-600 dark:text-zinc-400">
-								Loading chat...
-							</p>
-						</div>
-					</div>
-				</div>
-			}
-		>
-			<ChatContent {...props} isGeminiChat={props.isGeminiChat ?? false} />
-		</Suspense>
-	);
+  return (
+    <Suspense
+      fallback={
+        <div className="flex flex-col min-w-0 h-dvh bg-background">
+          <div className="flex items-center justify-center h-dvh">
+            <div className="flex flex-col items-center gap-4">
+              <div className="animate-spin text-zinc-500 size-12">
+                <LoaderIcon size={48} />
+              </div>
+              <p className="text-lg text-zinc-600 dark:text-zinc-400">
+                Loading chat...
+              </p>
+            </div>
+          </div>
+        </div>
+      }
+    >
+      <ChatContent
+        {...props}
+        isGeminiChat={props.isGeminiChat ?? false}
+      />
+    </Suspense>
+  );
 }

@@ -1,9 +1,11 @@
 import { z } from 'zod';
 
-const textPartSchema = z.object({
-  text: z.union([z.string(), z.array(z.any())]).optional(), // AI SDK v5: text can be string or array
-  type: z.string(), // AI SDK v5: Accept any string type (will be normalized internally)
-}).passthrough(); // Allow additional fields for tool-specific data
+const textPartSchema = z
+  .object({
+    text: z.union([z.string(), z.array(z.any())]).optional(), // AI SDK v5: text can be string or array
+    type: z.string(), // AI SDK v5: Accept any string type (will be normalized internally)
+  })
+  .passthrough(); // Allow additional fields for tool-specific data
 
 const messageSchema = z
   .object({
@@ -38,7 +40,7 @@ const messageSchema = z
   })
   .refine(
     (data) => {
-      // Проверяем, что есть либо content, либо parts с текстом, либо attachments
+      // Проверяем, что есть либо content, либо parts с текстом, либо attachments, либо tool parts
       const hasContent = data.content && data.content.length > 0;
       const hasPartsWithText =
         data.parts &&
@@ -54,7 +56,15 @@ const messageSchema = z
         data.experimental_attachments &&
         data.experimental_attachments.length > 0;
 
-      return hasContent || hasPartsWithText || hasAttachments;
+      // AI SDK v5: Messages with tool parts (tool-call, tool-result) are valid
+      const hasToolParts =
+        data.parts &&
+        data.parts.length > 0 &&
+        data.parts.some((part) => {
+          return part.type && typeof part.type === 'string' && part.type.startsWith('tool-');
+        });
+
+      return hasContent || hasPartsWithText || hasAttachments || hasToolParts;
     },
     {
       message: 'Message must have content, parts with text, or attachments',
@@ -68,14 +78,32 @@ export const postRequestBodySchema = z
     // Поддерживаем оба формата: message (объект) или messages (массив)
     message: messageSchema.optional(),
     messages: z.array(messageSchema).optional(),
-    selectedChatModel: z.enum([
-      'chat-model',
-      'chat-model-reasoning',
-      'o3-reasoning',
-      'o3-pro-reasoning',
-      'gemini-2.5-flash-lite',
-    ]).optional().default('chat-model'), // AI SDK v5: optional with default
-    selectedVisibilityType: z.enum(['public', 'private']).optional().default('private'), // AI SDK v5: optional with default
+    // Дополнительные вложения текущего запроса (когда фронт отправляет файл отдельно от message)
+    requestAttachments: z
+      .array(
+        z.object({
+          url: z.string().url(),
+          name: z.string().min(1),
+          contentType: z.string(),
+          thumbnailUrl: z.string().url().optional(),
+          id: z.string().optional(),
+        })
+      )
+      .optional(),
+    selectedChatModel: z
+      .enum([
+        'chat-model',
+        'chat-model-reasoning',
+        'o3-reasoning',
+        'o3-pro-reasoning',
+        'gemini-2.5-flash-lite',
+      ])
+      .optional()
+      .default('chat-model'), // AI SDK v5: optional with default
+    selectedVisibilityType: z
+      .enum(['public', 'private'])
+      .optional()
+      .default('private'), // AI SDK v5: optional with default
   })
   .refine(
     (data) => data.message || (data.messages && data.messages.length > 0),

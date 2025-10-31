@@ -159,7 +159,11 @@ export const useArtifact = (chatId?: string, initialMessages?: UIMessage[]) => {
         // ВАЖНО: Если артефакт был скрыт (isVisible: false), НЕ восстанавливаем его
         // Пользователь специально закрыл его
         // Исключение: если статус 'streaming' или 'pending', восстанавливаем
-        if (!savedData.isVisible && savedData.status !== 'streaming' && savedData.status !== 'pending') {
+        if (
+          !savedData.isVisible &&
+          savedData.status !== 'streaming' &&
+          savedData.status !== 'pending'
+        ) {
           console.log('🔍 Skipping restore - artifact was closed by user');
           clearArtifactFromStorage(chatId);
           return;
@@ -178,7 +182,6 @@ export const useArtifact = (chatId?: string, initialMessages?: UIMessage[]) => {
         });
 
         if (shouldRestore) {
-
           console.log('🔄 Restoring artifact:', {
             ...savedData,
             content: savedData.content
@@ -299,6 +302,7 @@ export const useArtifact = (chatId?: string, initialMessages?: UIMessage[]) => {
             return (
               toolName?.includes('ImageGeneration') ||
               toolName?.includes('VideoGeneration') ||
+              toolName === 'falVideoGeneration' || // Explicit check for Fal.ai video generation
               toolName?.includes('ScriptGeneration') ||
               toolName?.includes('createDocument')
             );
@@ -316,12 +320,23 @@ export const useArtifact = (chatId?: string, initialMessages?: UIMessage[]) => {
         if (toolPart) {
           console.log('🎯 Found tool with potential artifact:', {
             toolType: toolPart.type,
-            toolName: (toolPart as any).toolName || (toolPart as any).toolCallId,
+            toolName:
+              (toolPart as any).toolName || (toolPart as any).toolCallId,
             output: (toolPart as any).output,
           });
 
           // AI SDK v5: Check if artifact is in output.parts[0] (nested structure)
-          const artifactData = (toolPart as any).output?.parts?.[0] || (toolPart as any).output;
+          const artifactData =
+            (toolPart as any).output?.parts?.[0] || (toolPart as any).output;
+
+          console.log('🔍 Checking artifact data:', {
+            hasId: !!artifactData?.id,
+            hasArtifactId: !!artifactData?.artifactId,
+            hasKind: !!artifactData?.kind,
+            kind: artifactData?.kind,
+            id: artifactData?.id,
+            artifactId: artifactData?.artifactId,
+          });
 
           // Check for both id and artifactId (different tools use different field names)
           const documentId = artifactData?.id || artifactData?.artifactId;
@@ -336,6 +351,12 @@ export const useArtifact = (chatId?: string, initialMessages?: UIMessage[]) => {
               ...toolPart,
               output: { ...artifactData, id: documentId },
             } as any;
+          } else {
+            console.warn('⚠️ Tool part found but missing required fields:', {
+              hasDocumentId: !!documentId,
+              hasKind: !!artifactData?.kind,
+              artifactData,
+            });
           }
         }
       }
